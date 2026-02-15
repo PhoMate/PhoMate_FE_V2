@@ -1,0 +1,124 @@
+/* FolderView.css */
+.folder-view-container {
+    flex: 1;
+    padding: 40px;
+    background-color: #f4f7fa;
+}
+
+.folder-grid {
+    display: flex;
+    gap: 40px;
+}
+
+.folder-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.folder-item:hover { transform: scale(1.05); }
+
+.folder-svg-icon {
+    width: 100px;
+    height: 100px;
+    fill: #003366; /* 이미지의 진남색 폴더 */
+}
+
+.folder-name {
+    margin-top: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+/* FolderModal.css */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.2);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 3000;
+}
+
+.folder-setting-modal {
+    width: 600px;
+    background: white;
+    border-radius: 30px;
+    padding: 40px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+}
+
+.modal-section { margin-bottom: 25px; }
+
+.input-group {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.label-text {
+    font-size: 20px;
+    font-weight: 700;
+    color: #333;
+    white-space: nowrap;
+}
+
+.modal-input {
+    flex: 1;
+    border: none;
+    border-bottom: 1px solid #ddd;
+    font-size: 18px;
+    padding: 5px;
+}
+
+.confirm-btn, .invite-btn {
+    background: none; border: none;
+    color: #666; font-size: 14px; cursor: pointer;
+}
+
+.role-select {
+    background: #003366;
+    color: white;
+    border-radius: 20px;
+    padding: 5px 15px;
+    font-size: 12px;
+}
+
+/* 멤버 리스트 스타일 */
+.member-list-container {
+    margin-top: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.member-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    border: 1px solid #ddd;
+    border-radius: 15px;
+}
+
+.member-info { display: flex; align-items: center; gap: 15px; }
+.member-avatar { width: 35px; height: 35px; background: #003366; border-radius: 50%; }
+.member-name { font-weight: 700; font-size: 14px; display: block; }
+.member-email { font-size: 12px; color: #888; }
+
+.member-role-select {
+    background: #003366;
+    color: white;
+    border-radius: 5px;
+    font-size: 11px;
+    padding: 2px 8px;
+}
+
+.modal-final-confirm {
+    margin-top: 40px;
+    width: 100%;
+    background: none; border: none;
+    font-weight: 700; color: #666; cursor: pointer;
+}

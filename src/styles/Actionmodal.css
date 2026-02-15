@@ -1,0 +1,90 @@
+/* 엑션 모달 전용 스타일 */
+.action-modal {
+    width: 400px;
+    height: 250px;
+    background: white;
+    border-radius: 30px; /* PHOMATE 특유의 둥근 모서리 */
+    position: relative;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+/* 상단 닫기 버튼 스타일 */
+.modal-top-close {
+    position: absolute;
+    top: 20px;
+    right: 25px;
+    background: #f1f5f9; /* 연한 그레이 배경 */
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #64748b;
+    transition: all 0.2s ease;
+}
+
+.modal-top-close:hover {
+    background: #e2e8f0;
+    color: #003366;
+    transform: rotate(90deg); /* 호버 시 회전 애니메이션 */
+}
+
+/* 모달 내부 메시지 */
+.modal-message {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: #333;
+    margin-bottom: 40px;
+    text-align: center;
+    white-space: pre-line; /* 줄바꿈 적용 */
+}
+
+/* 하단 버튼 영역 */
+.modal-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 25px;
+}
+
+/* 공통 버튼 스타일 */
+.action-confirm, .action-cancel {
+    background: none;
+    border: none;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    padding: 10px;
+}
+
+/* 확인/예 버튼 (네이비 포인트) */
+.action-confirm {
+    color: #003366; /* PHOMATE 메인 네이비 */
+}
+
+/* 아니요 버튼 (그레이) */
+.action-cancel {
+    color: #94a3b8;
+}
+
+.action-confirm:hover, .action-cancel:hover {
+    opacity: 0.6;
+}
+
+/* 버튼 사이 세로 구분선 */
+.divider {
+    color: #e2e8f0;
+    font-weight: 300;
+    font-size: 18px;
+    user-select: none;
+}

@@ -1,0 +1,124 @@
+/* 알림 패널 (우측 상단) */
+.noti-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 280px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    padding: 20px;
+    z-index: 1000;
+}
+
+.noti-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    font-weight: 700;
+    color: #003366; /* 헤더 텍스트 네이비로 변경 */
+}
+
+/* 알림창 X 버튼 스타일 수정 */
+.noti-close-x {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #9ca3af;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    padding: 2px;
+}
+
+.noti-close-x:hover {
+    color: #003366; /* 호버 시 네이비 */
+    transform: scale(1.1);
+}
+
+.noti-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #333;
+}
+
+.noti-item:hover { background: #f9f9f9; }
+
+/* 초대 모달 (중앙) */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.15); /* 배경 가독성 위해 약간 어둡게 */
+    backdrop-filter: blur(4px); /* 뒷배경 블러 추가 */
+    display: flex; justify-content: center; align-items: center;
+    z-index: 5000;
+}
+
+.invite-modal {
+    width: 400px;
+    height: 250px;
+    background: white;
+    border-radius: 30px;
+    position: relative;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 초대 모달 X 버튼 스타일 수정 */
+.modal-top-close {
+    position: absolute;
+    top: 20px; 
+    right: 25px;
+    background: #f1f5f9; /* 배경색이 있는 원형 버튼 스타일 */
+    border: none; 
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    cursor: pointer; 
+    color: #64748b;
+    transition: all 0.2s ease;
+}
+
+.modal-top-close:hover {
+    background: #e2e8f0;
+    color: #003366;
+    transform: rotate(90deg); /* 호버 시 회전 애니메이션 */
+}
+
+.invite-modal-content { text-align: center; }
+.invite-modal-content h2 { 
+    font-size: 22px; 
+    line-height: 1.4; 
+    color: #333; 
+    margin-bottom: 30px; 
+}
+
+.invite-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+}
+
+.invite-actions button {
+    background: none; border: none;
+    font-size: 16px; font-weight: 700; /* 수락/거절 더 선명하게 */
+    color: #003366; /* 버튼도 네이비로 변경 */
+    cursor: pointer;
+}
+
+.invite-actions .divider { color: #ddd; font-weight: 300; }

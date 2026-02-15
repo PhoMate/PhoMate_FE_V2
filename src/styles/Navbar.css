@@ -1,0 +1,107 @@
+/* src/styles/Navbar.css */
+
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 30px;
+    height: 60px;
+    background-color: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 2000; /* 모달보다 높지 않게, 콘텐츠보다는 높게 */
+}
+
+.nav-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 14px;
+    color: #333;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.auth-links {
+    color: #666;
+}
+
+.divider {
+    margin: 0 5px;
+    color: #e5e7eb;
+}
+
+.nav-center .logo-text {
+    font-size: 24px;
+    font-weight: 900;
+    color: #003366; /* 메인 네이비 컬러 */
+    letter-spacing: 1px;
+    cursor: pointer;
+}
+
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 25px;
+}
+
+/* 알림 아이콘 배지 디자인 (이미지 fdbd85 스타일) */
+.notification-wrapper {
+    cursor: pointer;
+    position: relative;
+}
+
+.bell-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.bell-svg {
+    width: 24px;
+    height: 24px;
+}
+
+.noti-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background-color: #003366;
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #ffffff; /* 흰색 테두리로 배지 강조 */
+}
+
+/* 업로드 버튼 스타일 */
+.upload-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #003366;
+}
+
+.clickable {
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.clickable:hover {
+    opacity: 0.6;
+}

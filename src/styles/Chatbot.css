@@ -1,0 +1,121 @@
+/* src/styles/Chatbot.css */
+
+.chatbot-container {
+    width: 380px;
+    padding: 20px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.chatbot-window {
+    flex: 1;
+    background: white;
+    border-radius: 30px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chatbot-header {
+    background: #003366;
+    height: 60px;
+    display: flex;
+    align-items: flex-end;
+    padding-right: 15px;
+}
+
+.tabs { 
+    display: flex; 
+    flex: 1; 
+    height: 100%; 
+    align-items: flex-end; 
+}
+
+.tab {
+    flex: 1; 
+    height: 45px; 
+    border: none; 
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7); 
+    font-weight: bold; 
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tab.active {
+    background: white; 
+    color: #003366;
+    border-radius: 20px 20px 0 0;
+    height: 50px; /* 활성화 시 약간 더 높게 */
+}
+
+/* 편집 탭이 활성화 되었을 때의 특수 색상 */
+.tab.edit.active { 
+    background: #8e9db7; 
+    color: white; 
+}
+
+.chatbot-body { 
+    flex: 1; 
+    padding: 20px; 
+    overflow-y: auto; 
+}
+
+.edit-preview {
+    width: 100%; 
+    aspect-ratio: 1.2; 
+    background: #f0f2f5;
+    border-radius: 15px; 
+    margin-bottom: 15px; 
+    overflow: hidden;
+}
+
+.edit-preview img { 
+    width: 100%; 
+    height: 100%; 
+    object-fit: contain; 
+}
+
+.chatbot-footer { 
+    padding: 20px; 
+}
+
+.input-pill {
+    display: flex; 
+    align-items: center; 
+    border: 1px solid #ddd;
+    border-radius: 30px; 
+    padding: 5px 20px; 
+    height: 50px;
+    background: white;
+}
+
+.input-pill input { 
+    flex: 1; 
+    border: none; 
+    outline: none; 
+}
+
+/* 챗봇 열기 버튼 (닫혔을 때) */
+.chatbot-open-trigger {
+    position: fixed;
+    top: 880px;
+    right: 40px;
+    background: #003366;
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    z-index: 1000;
+    transition: transform 0.2s;
+}
+
+.chatbot-open-trigger:hover {
+    transform: scale(1.05);
+    background: #004080;
+}

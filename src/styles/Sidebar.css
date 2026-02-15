@@ -1,0 +1,158 @@
+.sidebar {
+  width: 240px;
+  height: 100vh;
+  background-color: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 35px;
+  font-family: 'Pretendard', sans-serif;
+}
+
+/* 홈 텍스트와 닫기 버튼 정렬 (Y축 일치) */
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center; /* Y축 중앙 정렬 */
+  margin-bottom: 5px; /* 섹션과의 간격 조절 */
+}
+
+/* 홈 글자 스타일 (X축은 아래 제목들과 일치) */
+.nav-home-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #003366;
+  cursor: pointer;
+  padding-left: 0; /* X축 정렬을 위해 여백 제거 */
+}
+
+.sidebar-close-btn {
+  font-size: 20px;
+  color: #9ca3af;
+  cursor: pointer;
+  line-height: 1;
+}
+
+/* 섹션 타이틀 */
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #003366;
+  cursor: pointer;
+}
+
+/* 서브 아이템 (선택 시 진하게 변경) */
+.sub-item {
+  font-size: 14px;
+  color: #9ca3af; /* 기본은 흐린 색 */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+/* 선택(Active) 및 호버 상태 스타일 */
+.nav-home-text.active,
+.sub-item.active {
+  color: #003366; /* 진한 색상 */
+  font-weight: 700; /* 굵게 */
+}
+
+.sub-item.active svg {
+  stroke: #003366; /* 아이콘 색상도 진하게 */
+}
+
+.sub-item:hover {
+  color: #374151;
+}
+
+/* 저장 공간 및 푸터 */
+.sidebar-footer {
+  margin-top: auto;
+}
+
+.storage-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #9ca3af;
+  margin-bottom: 8px;
+}
+
+.storage-val {
+  color: #374151;
+  font-weight: 600;
+}
+
+.storage-bar {
+  width: 100%;
+  height: 6px;
+  background-color: #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.storage-bar .fill {
+  height: 100%;
+  background-color: #003366;
+  border-radius: 10px;
+}
+
+.logout-btn-outline {
+  width: 100%;
+  background: none;
+  border: 1px solid #ef4444;
+  color: #ef4444;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.logout-btn-outline:hover {
+  background-color: #fef2f2;
+}
+
+/* 사이드바 하단 추가 메뉴 스타일 */
+.sidebar-extra-item {
+  font-size: 14px;
+  color: #9ca3af;
+  cursor: pointer;
+  margin-bottom: 25px; /* 저장공간과의 간격 */
+  transition: all 0.2s;
+  font-weight: 500;
+  padding-left: 0; /* X축 정렬 유지 */
+}
+
+.sidebar-extra-item:hover {
+  color: #374151;
+}
+
+/* 활성화 시 네이비색으로 강조 */
+.sidebar-extra-item.active {
+  color: #003366;
+  font-weight: 700;
+}
+
+/* 기존 푸터 마진 조정 */
+.sidebar-footer {
+  margin-top: auto;
+}

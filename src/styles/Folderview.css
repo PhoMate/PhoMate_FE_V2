@@ -1,0 +1,65 @@
+/* src/styles/FolderView.css */
+
+.folder-view-container {
+    flex: 1;
+    padding: 40px;
+    background-color: #f4f7fa; /* 메인 배경색과 통일 */
+    min-height: 100%;
+}
+
+.folder-grid {
+    display: flex;
+    flex-wrap: wrap; /* 창이 좁아지면 아래로 떨어지도록 */
+    gap: 50px; /* 폴더 간격 */
+    justify-content: flex-start;
+    align-items: flex-start;
+}
+
+.folder-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 120px;
+    cursor: pointer;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+/* 마우스 호버 시 효과 */
+.folder-item:hover {
+    transform: translateY(-5px);
+}
+
+.folder-item:active {
+    transform: scale(0.95);
+    opacity: 0.8;
+}
+
+.folder-icon-wrapper {
+    width: 100px;
+    height: 100px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+/* 이미지 속의 진한 네이비색 폴더 스타일 */
+.folder-svg-icon {
+    width: 100%;
+    height: 100%;
+    fill: #003366; /* PHOMATE 메인 네이비 컬러 */
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+}
+
+.folder-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #333;
+    text-align: center;
+    word-break: break-all;
+    /* 폴더 이름이 길어질 경우 대비 */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}

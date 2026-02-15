@@ -1,0 +1,80 @@
+.home-container { display: flex; flex-direction: column; height: 100vh; }
+.main-layout { display: flex; flex: 1; margin-top: 60px; overflow: hidden; position: relative; }
+
+/* 메인 사진 영역 */
+.photo-area {
+    flex: 1;
+    padding: 30px;
+    background-color: #f4f7fa;
+    overflow-y: auto;
+    transition: margin 0.3s ease, width 0.3s ease;
+}
+
+/* 사이드바/챗봇 상태에 따른 레이아웃 조절 */
+.photo-area.sidebar-open { margin-left: 0; }
+.photo-area.sidebar-closed { margin-left: 0; }
+
+.photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+/* 접힌 사이드바 스타일 */
+.sidebar-minimized {
+    width: 50px;
+    height: 100%;
+    background: #fff;
+    border-right: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: center;
+    padding-top: 20px;
+    cursor: pointer;
+}
+
+.toggle-icon { color: #003366; font-size: 20px; font-weight: bold; }
+
+/* 펼쳐진 사이드바 내 닫기 버튼 */
+.sidebar-header {
+    display: flex;
+    justify-content: flex-end;
+    padding-bottom: 10px;
+}
+.sidebar-close {
+    cursor: pointer;
+    color: #9ca3af;
+    font-size: 18px;
+}
+
+.bottom-controls {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+}
+
+.base-btn {
+    padding: 10px 25px;
+    border-radius: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.select-trigger { background: #003366; color: white; }
+.action-group {
+    background: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.restore-btn { background: #003366; color: white; }
+.delete-btn { background: #800020; color: white; } /* 다크레드 */
+.cancel-btn { background: #eee; color: #666; }
+.select-count { font-size: 14px; font-weight: 600; color: #003366; margin-right: 10px; }

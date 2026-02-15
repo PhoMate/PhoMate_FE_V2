@@ -1,0 +1,54 @@
+.trash-view-container {
+    position: relative;
+    min-height: 100%;
+}
+
+.trash-bottom-controls {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+}
+
+/* 선택 버튼 */
+.trash-select-btn {
+    background-color: #003366; /* 메인 네이비 */
+    color: white;
+    border: none;
+    padding: 12px 40px;
+    border-radius: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+/* 액션 그룹 바 */
+.trash-action-group {
+    background: white;
+    padding: 12px 25px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    border: 1px solid #e5e7eb;
+}
+
+.trash-count {
+    color: #003366;
+    font-weight: 700;
+    margin-right: 10px;
+}
+
+.trash-btn {
+    padding: 8px 20px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+}
+
+.trash-btn.restore { background-color: #003366; color: white; }
+.trash-btn.delete { background-color: #800020; color: white; } /* 다크 레드 */
+.trash-btn.cancel { background-color: #f3f4f6; color: #666; }
