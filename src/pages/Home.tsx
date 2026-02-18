@@ -4,7 +4,7 @@ import Sidebar from '../components/Sidebar';
 import Chatbot from '../components/Chatbot';
 import PhotoCard from '../components/Photocard';
 import PhotoPreview from '../components/Photopreview';
-import FolderView from '../components/FolderView';
+import FolderView from '../components/Folderview';
 import FolderModal from '../components/Foldermodal';
 import SharedFolderModal from '../components/Sharedfoldermodal';
 import NotificationPanel from '../components/Notificationpanel';

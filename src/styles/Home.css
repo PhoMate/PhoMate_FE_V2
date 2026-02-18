@@ -34,18 +34,6 @@
 
 .toggle-icon { color: #003366; font-size: 20px; font-weight: bold; }
 
-/* 펼쳐진 사이드바 내 닫기 버튼 */
-.sidebar-header {
-    display: flex;
-    justify-content: flex-end;
-    padding-bottom: 10px;
-}
-.sidebar-close {
-    cursor: pointer;
-    color: #9ca3af;
-    font-size: 18px;
-}
-
 .bottom-controls {
     position: fixed;
     bottom: 30px;

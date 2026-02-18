@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, Crown } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Crown, Link, UserPlus, Trash2, Check, Copy } from 'lucide-react';
 import '../styles/SharedFolderModal.css';
 
 interface SharedFolderModalProps {
@@ -8,7 +8,8 @@ interface SharedFolderModalProps {
 }
 
 export default function SharedFolderModal({ folderName, onClose }: SharedFolderModalProps) {
-  // 샘플 데이터
+  const [isCopied, setIsCopied] = useState(false);
+  
   const members = [
     { id: 1, name: '황태운', email: 'twoon0402@gmail.com', role: 'owner' },
     { id: 2, name: '김나연', email: 'twoon040@gmail.com', role: 'viewer' },
@@ -17,80 +18,94 @@ export default function SharedFolderModal({ folderName, onClose }: SharedFolderM
   const handleCopyLink = () => {
     const link = "https://phomate.com/share/a1b2c3d4";
     navigator.clipboard.writeText(link);
-    alert("링크가 복사되었습니다!");
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   return (
-    <div className="shared-modal-overlay" onClick={onClose}>
-      <div className="shared-modal-content" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="shared-modal-card" onClick={(e) => e.stopPropagation()}>
         
-        {/* 헤더 섹션 */}
-        <div className="shared-modal-header">
-          <h2 className="shared-modal-title">공유폴더</h2>
-          <button className="edit-text-btn">수정</button>
+        {/* 헤더 섹션: 이름 수정 및 닫기 버튼 */}
+        <div className="modal-header">
+          <div className="title-area">
+            <h2 className="modal-title">공유 폴더 설정</h2>
+            <button className="text-link-btn">이름 수정</button>
+          </div>
+          <button className="close-icon-btn" onClick={onClose}><X size={20} /></button>
         </div>
 
-        {/* 멤버 초대 섹션 */}
-        <div className="shared-modal-section">
-          <div className="invite-row">
-            <span className="section-label">멤버 초대 |</span>
-            <div className="invite-controls">
-              <select className="role-select-box">
-                <option>보기 전용</option>
-                <option>편집 가능</option>
-              </select>
-              <button className="invite-action-btn">초대하기</button>
-            </div>
+        {/* 1. 멤버 초대 섹션 */}
+        <div className="section-container">
+          <label className="section-label">새 멤버 초대</label>
+          <div className="invite-input-row">
+            <input type="email" className="modern-input" placeholder="초대할 이메일 주소 입력" />
+            <select className="role-dropdown">
+              <option value="viewer">보기 전용</option>
+              <option value="editor">편집 가능</option>
+            </select>
+            <button className="icon-action-btn primary"><UserPlus size={18} /></button>
           </div>
         </div>
 
-        {/* 멤버 리스트 섹션 */}
-        <div className="shared-member-list">
-          {members.map((member) => (
-            <div key={member.id} className="shared-member-card">
-              <div className="member-profile-info">
-                <div className="avatar-placeholder" />
-                <div className="text-details">
-                  <p className="member-name-tag">
-                    {member.name} {member.role === 'owner' && <Crown size={14} className="owner-icon" />}
-                  </p>
-                  <p className="member-email-tag">{member.email}</p>
+        {/* 2. 링크 공유 섹션 (image_cad15d.png 스타일 재현) */}
+        <div className="section-container">
+          <label className="section-label">링크로 초대하기</label>
+          <div className="link-copy-container">
+            <div className="link-icon"><Link size={16} /></div>
+            <input type="text" readOnly value="https://phomate.com/share/a1b2c3d4" className="link-input-readonly" />
+            <button className={`copy-btn ${isCopied ? 'success' : ''}`} onClick={handleCopyLink}>
+              {isCopied ? <Check size={16} /> : "복사"}
+            </button>
+          </div>
+        </div>
+
+        {/* 3. 참여 멤버 리스트 */}
+        <div className="member-list-area">
+          <label className="section-label">참여 중인 멤버 ({members.length})</label>
+          <div className="member-scroll-box">
+            {members.map((member) => (
+              <div key={member.id} className="member-item-card">
+                <div className="member-info">
+                  <div className="member-avatar">{member.name[0]}</div>
+                  <div className="member-text">
+                    <div className="name-box">
+                      <span className="name">{member.name}</span>
+                      {member.role === 'owner' && <Crown size={12} className="crown-icon" />}
+                    </div>
+                    <span className="email">{member.email}</span>
+                  </div>
+                </div>
+                
+                <div className="member-actions">
+                  {member.role === 'owner' ? (
+                    <span className="owner-tag">방장</span>
+                  ) : (
+                    <div className="control-group">
+                      {/* 1. 보기전용/편집가능 커스텀 버튼 */}
+                      <div className="select-wrapper">
+                        <select className="member-role-select">
+                          <option value="viewer">보기 전용</option>
+                          <option value="editor">편집 가능</option>
+                        </select>
+                      </div>
+                      
+                      {/* 2. 깔끔한 아이콘 기반 휴지통 버튼 */}
+                      <button className="delete-member-btn" title="멤버 제외">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="member-status-area">
-                {member.role === 'owner' ? (
-                  <span className="owner-label">방장</span>
-                ) : (
-                  <div className="viewer-controls">
-                    <select className="mini-role-select">
-                      <option>보기 전용</option>
-                    </select>
-                    <button className="remove-member-btn"><X size={14} /></button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* 링크 공유 섹션 (image_f3b9a3.png 스타일) */}
-        <div className="shared-modal-section link-share-area">
-          <label className="link-label">링크 공유</label>
-          <div className="link-copy-group">
-            <input 
-              type="text" 
-              readOnly 
-              value="https://phomate.com/share/a1b2c3d4" 
-              className="share-link-input" 
-            />
-            <button className="copy-action-btn" onClick={handleCopyLink}>링크 복사</button>
+            ))}
           </div>
         </div>
-
-        {/* 하단 버튼 섹션 */}
-        <div className="shared-modal-footer">
-          <button className="modal-confirm-btn" onClick={onClose}>확인</button>
-          <button className="folder-delete-btn">공유 폴더 삭제</button>
+              
+        {/* 하단 푸터 버튼 */}
+        <div className="modal-footer">
+          <button className="quit-btn">폴더 나가기</button>
+          <button className="save-btn" onClick={onClose}>설정 완료</button>
         </div>
       </div>
     </div>

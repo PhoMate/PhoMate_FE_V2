@@ -1,6 +1,6 @@
 .sidebar {
   width: 240px;
-  height: 100vh;
+  height: 100%;
   background-color: #ffffff;
   border-right: 1px solid #e5e7eb;
   padding: 40px 24px;
@@ -8,6 +8,8 @@
   flex-direction: column;
   gap: 35px;
   font-family: 'Pretendard', sans-serif;
+  box-sizing: border-box;
+  overflow-y: auto;
 }
 
 /* 홈 텍스트와 닫기 버튼 정렬 (Y축 일치) */

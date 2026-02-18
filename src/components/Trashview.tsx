@@ -27,7 +27,7 @@ export default function TrashView() {
             setIsSelectMode(false);
             setSelectedIds([]);
         } else {
-            setModalConfig({ type: 'delete_confirm', message: '진짜 삭제하시겠습니까?' });
+            setModalConfig({ type: 'delete_confirm', message: '삭제하시겠습니까?' });
         }
     };
 

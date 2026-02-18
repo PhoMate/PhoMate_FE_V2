@@ -19,8 +19,7 @@ export default function Sidebar({ isOpen, onToggle, activeNav, onNavClick, onPlu
                 <div 
                     className={`nav-home-text ${activeNav === 'home' ? 'active' : ''}`} 
                     onClick={() => onNavClick('home')}
-                >
-                    홈
+                >홈
                 </div>
                 <span className="sidebar-close-btn" onClick={onToggle}>«</span>
             </div>

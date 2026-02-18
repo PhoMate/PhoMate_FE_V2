@@ -1,9 +1,9 @@
-/* src/styles/Chatbot.css */
+/* --- Chatbot.css 리뉴얼 버전 --- */
 
 .chatbot-container {
-    width: 380px;
-    padding: 20px;
+    width: 400px;
     height: 100%;
+    padding: 24px;
     display: flex;
     flex-direction: column;
 }
@@ -11,111 +11,225 @@
 .chatbot-window {
     flex: 1;
     background: white;
-    border-radius: 30px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    border-radius: 40px; /* 시안과 동일한 큰 라운딩 */
+    box-shadow: 0 20px 50px rgba(0, 51, 102, 0.1);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    border: 1px solid #F1F5F9;
 }
 
+/* 탭 헤더 스타일 */
 .chatbot-header {
-    background: #003366;
-    height: 60px;
+    background: #003366; /* Deep Blue */
+    height: 64px;
     display: flex;
     align-items: flex-end;
-    padding-right: 15px;
+    padding: 0 20px;
 }
 
-.tabs { 
-    display: flex; 
-    flex: 1; 
-    height: 100%; 
-    align-items: flex-end; 
+.tabs {
+    display: flex;
+    flex: 1;
+    gap: 4px;
 }
 
-.tab {
-    flex: 1; 
-    height: 45px; 
-    border: none; 
+.tab-btn {
+    flex: 1;
+    height: 48px;
+    border: none;
     background: transparent;
-    color: rgba(255, 255, 255, 0.7); 
-    font-weight: bold; 
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 700;
+    font-size: 14px;
     cursor: pointer;
     transition: all 0.2s;
 }
 
-.tab.active {
-    background: white; 
+.tab-btn.active {
+    background: white;
     color: #003366;
-    border-radius: 20px 20px 0 0;
-    height: 50px; /* 활성화 시 약간 더 높게 */
+    border-radius: 20px 20px 0 0; /* 시안 특유의 탭 모양 */
+    height: 54px;
+    box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
 }
 
-/* 편집 탭이 활성화 되었을 때의 특수 색상 */
-.tab.edit.active { 
-    background: #8e9db7; 
-    color: white; 
+/* 편집 탭 활성화 시 색상 변경 */
+.tab-btn.edit.active {
+    background: #8E9DB7;
+    color: white;
 }
 
-.chatbot-body { 
-    flex: 1; 
-    padding: 20px; 
-    overflow-y: auto; 
+.panel-close-btn {
+    margin-bottom: 12px;
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    opacity: 0.8;
 }
 
-.edit-preview {
-    width: 100%; 
-    aspect-ratio: 1.2; 
-    background: #f0f2f5;
-    border-radius: 15px; 
-    margin-bottom: 15px; 
-    overflow: hidden;
-}
-
-.edit-preview img { 
-    width: 100%; 
-    height: 100%; 
-    object-fit: contain; 
-}
-
-.chatbot-footer { 
-    padding: 20px; 
-}
-
-.input-pill {
-    display: flex; 
-    align-items: center; 
-    border: 1px solid #ddd;
-    border-radius: 30px; 
-    padding: 5px 20px; 
-    height: 50px;
+.chatbot-body {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
     background: white;
 }
 
-.input-pill input { 
-    flex: 1; 
-    border: none; 
-    outline: none; 
+/* 메시지 버블 디자인 */
+.msg-bubble-bot {
+    background: #F1F5F9;
+    color: #475569;
+    padding: 12px 18px;
+    border-radius: 20px 20px 20px 0;
+    font-size: 13px;
+    margin-bottom: 12px;
+    width: fit-content;
+    max-width: 85%;
 }
 
-/* 챗봇 열기 버튼 (닫혔을 때) */
-.chatbot-open-trigger {
-    position: fixed;
-    top: 880px;
-    right: 40px;
+.msg-bubble-user {
+    background: #8E9DB7;
+    color: white;
+    padding: 12px 18px;
+    border-radius: 20px 20px 0 20px;
+    font-size: 13px;
+    margin-left: auto;
+    width: fit-content;
+    max-width: 85%;
+    box-shadow: 0 4px 12px rgba(142, 157, 183, 0.3);
+}
+
+/* 편집 뷰 디자인 */
+.edit-preview-area {
+    width: 100%;
+    aspect-ratio: 1.1;
+    background: #F8FAFC;
+    border-radius: 24px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.preview-placeholder {
+    color: #94A3B8;
+    font-size: 13px;
+    text-align: center;
+}
+
+.edit-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.tool-btn {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    background: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tool-btn.direct-edit {
+    flex: 2;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 13px;
+    color: #334155;
+}
+
+.save-finish-btn {
+    width: 100%;
+    padding: 14px;
     background: #003366;
     color: white;
     border: none;
-    padding: 10px 24px;
-    border-radius: 12px;
-    font-weight: bold;
+    border-radius: 14px;
+    font-weight: 700;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-    z-index: 1000;
-    transition: transform 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.2s;
 }
 
+/* 하단 입력 알약 디자인 */
+.chatbot-footer {
+    padding: 0 24px 24px;
+}
+
+.input-field-pill {
+    display: flex;
+    align-items: center;
+    border: 1px solid #E2E8F0;
+    border-radius: 30px;
+    padding: 4px 20px;
+    height: 54px;
+    background: white;
+}
+
+.chat-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 13px;
+}
+
+.chat-send-btn {
+    background: none;
+    border: none;
+    color: #003366;
+    font-weight: 800;
+    font-size: 13px;
+    cursor: pointer;
+    padding-left: 12px;
+}
+
+/* 챗봇 열기 버튼 (닫혔을 때) */
+
+.chatbot-open-trigger {
+
+    position: fixed;
+
+    top: 880px;
+
+    right: 40px;
+
+    background: #003366;
+
+    color: white;
+
+    border: none;
+
+    padding: 10px 24px;
+
+    border-radius: 12px;
+
+    font-weight: bold;
+
+    cursor: pointer;
+
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+
+    z-index: 1000;
+
+    transition: transform 0.2s;
+
+}
+
+
+
 .chatbot-open-trigger:hover {
+
     transform: scale(1.05);
+
     background: #004080;
+
 }
