@@ -60,6 +60,7 @@
     /* 폴더 이름이 길어질 경우 대비 */
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }

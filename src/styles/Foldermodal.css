@@ -1,124 +1,190 @@
-/* FolderView.css */
-.folder-view-container {
-    flex: 1;
-    padding: 40px;
-    background-color: #f4f7fa;
-}
+/* --- FolderModal.css --- */
 
-.folder-grid {
-    display: flex;
-    gap: 40px;
-}
-
-.folder-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-
-.folder-item:hover { transform: scale(1.05); }
-
-.folder-svg-icon {
-    width: 100px;
-    height: 100px;
-    fill: #003366; /* 이미지의 진남색 폴더 */
-}
-
-.folder-name {
-    margin-top: 10px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #333;
-}
-
-/* FolderModal.css */
+/* 모달 배경 오버레이 */
 .modal-overlay {
     position: fixed;
-    top: 0; left: 0; width: 100vw; height: 100vh;
-    background: rgba(0, 0, 0, 0.2);
-    display: flex; justify-content: center; align-items: center;
-    z-index: 3000;
-}
-
-.folder-setting-modal {
-    width: 600px;
-    background: white;
-    border-radius: 30px;
-    padding: 40px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-}
-
-.modal-section { margin-bottom: 25px; }
-
-.input-group {
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(4px); /* 배경 블러 효과 */
     display: flex;
+    justify-content: center;
     align-items: center;
-    gap: 15px;
+    z-index: 9999;
 }
 
-.label-text {
-    font-size: 20px;
-    font-weight: 700;
-    color: #333;
-    white-space: nowrap;
-}
-
-.modal-input {
-    flex: 1;
-    border: none;
-    border-bottom: 1px solid #ddd;
-    font-size: 18px;
-    padding: 5px;
-}
-
-.confirm-btn, .invite-btn {
-    background: none; border: none;
-    color: #666; font-size: 14px; cursor: pointer;
-}
-
-.role-select {
-    background: #003366;
-    color: white;
-    border-radius: 20px;
-    padding: 5px 15px;
-    font-size: 12px;
-}
-
-/* 멤버 리스트 스타일 */
-.member-list-container {
-    margin-top: 30px;
+/* 모달 카드 메인 박스 */
+.shared-modal-card {
+    width: 480px;
+    background: #ffffff;
+    border-radius: 32px; /* 둥근 모서리 아이덴티티 */
+    padding: 32px;
+    box-shadow: 0 20px 60px -12px rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
-    gap: 15px;
 }
 
-.member-item {
+/* 헤더 영역 */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+}
+
+.modal-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: #1e293b;
+    margin: 0;
+}
+
+/* 닫기 버튼 */
+.close-icon-btn {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    padding: 4px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.close-icon-btn:hover {
+    color: #1e293b;
+}
+
+/* 섹션 공통 컨테이너 */
+.section-container {
+    margin-bottom: 24px;
+}
+
+.section-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 10px;
+}
+
+/* 입력창 행 스타일 */
+.invite-input-row {
+    display: flex;
+    gap: 12px;
+    padding: 4px 4px 4px 16px;
+    border-radius: 16px;
+    align-items: center;
+    transition: border-color 0.2s;
+}
+
+.modern-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    color: #1e293b;
+    outline: none;
+    padding: 10px 0;
+}
+
+/* 변경 버튼 */
+.copy-btn {
+    background: #003366; /* 브랜드 진남색 */
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.copy-btn:hover {
+    opacity: 0.9;
+}
+
+/* 정보 요약 카드 디자인 */
+.link-copy-container {
+    display: flex;
+    align-items: center;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 16px;
+}
+
+.info-item {
+    color: #1e293b;
+}
+
+.text-blue-900 {
+    color: #003366;
+}
+
+/* 관리 옵션 (삭제 영역) */
+.member-list-area {
+    margin-bottom: 32px;
+}
+
+.member-item-card {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 20px;
-    border: 1px solid #ddd;
-    border-radius: 15px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    background: #fff;
+    transition: all 0.2s;
 }
 
-.member-info { display: flex; align-items: center; gap: 15px; }
-.member-avatar { width: 35px; height: 35px; background: #003366; border-radius: 50%; }
-.member-name { font-weight: 700; font-size: 14px; display: block; }
-.member-email { font-size: 12px; color: #888; }
+.member-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
 
-.member-role-select {
+.member-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.member-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.name {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.email {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+/* 하단 설정 완료 버튼 */
+.modal-footer {
+    display: flex;
+}
+
+.save-btn {
     background: #003366;
     color: white;
-    border-radius: 5px;
-    font-size: 11px;
-    padding: 2px 8px;
+    border: none;
+    border-radius: 16px;
+    padding: 16px;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    transition: transform 0.1s;
 }
 
-.modal-final-confirm {
-    margin-top: 40px;
-    width: 100%;
-    background: none; border: none;
-    font-weight: 700; color: #666; cursor: pointer;
+.save-btn:active {
+    transform: scale(0.98);
 }
