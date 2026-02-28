@@ -195,41 +195,21 @@
 /* 챗봇 열기 버튼 (닫혔을 때) */
 
 .chatbot-open-trigger {
-
     position: fixed;
-
-    top: 880px;
-
+    bottom: 28px;
     right: 40px;
-
     background: #003366;
-
     color: white;
-
     border: none;
-
     padding: 10px 24px;
-
     border-radius: 12px;
-
     font-weight: bold;
-
     cursor: pointer;
-
     box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-
     z-index: 1000;
-
     transition: transform 0.2s;
-
 }
-
-
-
 .chatbot-open-trigger:hover {
-
     transform: scale(1.05);
-
     background: #004080;
-
 }

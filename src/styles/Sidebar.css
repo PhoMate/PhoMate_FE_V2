@@ -68,6 +68,32 @@
   transition: all 0.2s;
 }
 
+.sub-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sub-item-row .sub-item {
+  flex: 1;
+}
+
+.sub-item-setting-btn {
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.sub-item-setting-btn:hover {
+  color: #374151;
+  background: #f3f4f6;
+}
+
 /* 선택(Active) 및 호버 상태 스타일 */
 .nav-home-text.active,
 .sub-item.active {
@@ -86,6 +112,14 @@
 /* 저장 공간 및 푸터 */
 .sidebar-footer {
   margin-top: auto;
+}
+
+.storage-clickable {
+  cursor: pointer;
+}
+
+.storage-clickable:hover .storage-text span {
+  color: #374151;
 }
 
 .storage-text {

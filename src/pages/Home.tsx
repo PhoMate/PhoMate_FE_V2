@@ -14,6 +14,7 @@ import ActionModal from '../components/Actionmodal';
 // 업로드 관련 컴포넌트 추가
 import UploadModal from '../components/Uploadmodal'; 
 import UploadStatusPanel from '../components/Uploadstatuspanel';
+import StorageUsageModal from '../components/StorageUsageModal';
 import { Photo } from '../types';
 import '../styles/Home.css';
 
@@ -22,12 +23,24 @@ type ViewType = 'home' | 'folder_list' | 'folder_detail' | 'shared_list' | 'shar
 export default function Home() {
     const [view, setView] = useState<ViewType>('home');
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+    const [folders, setFolders] = useState<string[]>(['폴더 1']);
+    const [folderStorageByName, setFolderStorageByName] = useState<Record<string, string>>({
+        '폴더 1': '1.2 GB',
+    });
+    const [sharedFolders, setSharedFolders] = useState<string[]>(['공유 폴더 1']);
+    const [sharedFolderStorageByName, setSharedFolderStorageByName] = useState<Record<string, string>>({
+        '공유 폴더 1': '11.8 GB',
+    });
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isChatOpen, setIsChatOpen] = useState(true);
 
     const [previewIndex, setPreviewIndex] = useState<number | null>(null);
     const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+    const [folderModalMode, setFolderModalMode] = useState<'create' | 'settings'>('create');
+    const [selectedFolderForSettings, setSelectedFolderForSettings] = useState('새 폴더');
     const [isSharedModalOpen, setIsSharedModalOpen] = useState(false);
+    const [sharedModalMode, setSharedModalMode] = useState<'create' | 'settings'>('settings');
+    const [selectedSharedFolderForSettings, setSelectedSharedFolderForSettings] = useState('공유 폴더 1');
     const [isNotiOpen, setIsNotiOpen] = useState(false);
     const [showInviteModal, setShowInviteModal] = useState(false);
     
@@ -36,6 +49,7 @@ export default function Home() {
     const [uploadProgress, setUploadProgress] = useState(0);
 
     const [modalConfig, setModalConfig] = useState<{type: 'restore' | 'delete_confirm' | 'alert', message: string} | null>(null);
+    const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
 
     const startUpload = () => {
         setIsUploadModalOpen(false);
@@ -80,6 +94,102 @@ export default function Home() {
         }
     };
 
+    const handleSaveFolder = (name: string) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+
+        if (folderModalMode === 'create') {
+            setFolders((prev) => [...prev, trimmed]);
+            setFolderStorageByName((prev) => ({ ...prev, [trimmed]: '0 MB' }));
+            setSelectedFolder(trimmed);
+            setView('folder_detail');
+        } else {
+            setFolders((prev) => prev.map((folder) => folder === selectedFolderForSettings ? trimmed : folder));
+            setFolderStorageByName((prev) => {
+                const currentStorage = prev[selectedFolderForSettings] ?? '0 MB';
+                const next = { ...prev };
+                delete next[selectedFolderForSettings];
+                next[trimmed] = currentStorage;
+                return next;
+            });
+            if (selectedFolder === selectedFolderForSettings) {
+                setSelectedFolder(trimmed);
+            }
+        }
+    };
+
+    const handleDeleteFolder = () => {
+        const target = selectedFolderForSettings;
+        setFolders((prev) => prev.filter((folder) => folder !== target));
+        setFolderStorageByName((prev) => {
+            const next = { ...prev };
+            delete next[target];
+            return next;
+        });
+
+        if (selectedFolder === target) {
+            setSelectedFolder(null);
+            setView('folder_list');
+        }
+    };
+
+    const handleSaveSharedFolder = (nextName: string) => {
+        const trimmed = nextName.trim();
+        if (!trimmed) return;
+
+        if (sharedModalMode === 'create') {
+            setSharedFolders((prev) => [...prev, trimmed]);
+            setSharedFolderStorageByName((prev) => ({ ...prev, [trimmed]: '0 MB' }));
+            setSelectedFolder(trimmed);
+            setView('shared_detail');
+            setSelectedSharedFolderForSettings(trimmed);
+        } else {
+            setSharedFolders((prev) =>
+                prev.map((folder) =>
+                    folder === selectedSharedFolderForSettings ? trimmed : folder
+                )
+            );
+
+            setSharedFolderStorageByName((prev) => {
+                const currentStorage = prev[selectedSharedFolderForSettings] ?? '0 MB';
+                const next = { ...prev };
+                delete next[selectedSharedFolderForSettings];
+                next[trimmed] = currentStorage;
+                return next;
+            });
+
+            if (selectedFolder === selectedSharedFolderForSettings) {
+                setSelectedFolder(trimmed);
+            }
+
+            setSelectedSharedFolderForSettings(trimmed);
+        }
+    };
+
+    const handleLeaveSharedFolder = () => {
+        const target = selectedSharedFolderForSettings;
+
+        setSharedFolders((prev) => prev.filter((folder) => folder !== target));
+        setSharedFolderStorageByName((prev) => {
+            const next = { ...prev };
+            delete next[target];
+            return next;
+        });
+
+        if (selectedFolder === target) {
+            setSelectedFolder(null);
+            setView('shared_list');
+        }
+    };
+
+    const activeNavKey =
+        view === 'home' ? 'home' :
+        view === 'trash' ? 'trash' :
+        view === 'folder_list' ? 'folder_parent' :
+        view === 'folder_detail' ? `folder_child:${selectedFolder || ''}` :
+        view === 'shared_list' ? 'shared_parent' :
+        `shared_child:${selectedFolder || ''}`;
+
     return (
         <div className="home-container">
             <Navbar 
@@ -91,10 +201,31 @@ export default function Home() {
                 <Sidebar 
                     isOpen={isSidebarOpen}
                     onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-                    activeNav={view} 
+                    activeNav={activeNavKey}
+                    folders={folders}
+                    sharedFolders={sharedFolders}
                     onNavClick={handleNavigate} 
-                    onPlusClick={() => setIsFolderModalOpen(true)}
-                    onLinkClick={() => setIsSharedModalOpen(true)}
+                    onPlusClick={() => {
+                        setFolderModalMode('create');
+                        setSelectedFolderForSettings('새 폴더');
+                        setIsFolderModalOpen(true);
+                    }}
+                    onLinkClick={() => {
+                        setSharedModalMode('create');
+                        setSelectedSharedFolderForSettings(`공유 폴더 ${sharedFolders.length + 1}`);
+                        setIsSharedModalOpen(true);
+                    }}
+                    onStorageClick={() => setIsStorageModalOpen(true)}
+                    onFolderSettingsClick={(name) => {
+                        setFolderModalMode('settings');
+                        setSelectedFolderForSettings(name);
+                        setIsFolderModalOpen(true);
+                    }}
+                    onSharedFolderSettingsClick={(name) => {
+                        setSharedModalMode('settings');
+                        setSelectedSharedFolderForSettings(name);
+                        setIsSharedModalOpen(true);
+                    }}
                 /> 
 
                 <main className={`photo-area 
@@ -153,11 +284,24 @@ export default function Home() {
             )}
 
             {isFolderModalOpen && (
-                <FolderModal folderName="새 폴더" onClose={() => setIsFolderModalOpen(false)} />
+                <FolderModal
+                    mode={folderModalMode}
+                    folderName={selectedFolderForSettings}
+                    usedStorage={folderStorageByName[selectedFolderForSettings] ?? '0 MB'}
+                    onSave={handleSaveFolder}
+                    onDelete={handleDeleteFolder}
+                    onClose={() => setIsFolderModalOpen(false)}
+                />
             )}
 
             {isSharedModalOpen && (
-                <SharedFolderModal folderName="공유 폴더" onClose={() => setIsSharedModalOpen(false)} />
+                <SharedFolderModal
+                    mode={sharedModalMode}
+                    folderName={selectedSharedFolderForSettings}
+                    onSave={handleSaveSharedFolder}
+                    onLeave={handleLeaveSharedFolder}
+                    onClose={() => setIsSharedModalOpen(false)}
+                />
             )}
 
             {showInviteModal && (
@@ -187,6 +331,20 @@ export default function Home() {
                             setModalConfig(null);
                         }
                     }}
+                />
+            )}
+
+            {isStorageModalOpen && (
+                <StorageUsageModal
+                    folderUsages={folders.map((name) => ({
+                        name,
+                        storage: folderStorageByName[name] ?? '0 MB',
+                    }))}
+                    sharedFolderUsages={sharedFolders.map((name) => ({
+                        name,
+                        storage: sharedFolderStorageByName[name] ?? '0 MB',
+                    }))}
+                    onClose={() => setIsStorageModalOpen(false)}
                 />
             )}
         </div>

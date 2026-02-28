@@ -15,8 +15,6 @@ export default function Navbar({ onNotiClick, onUploadClick }: NavbarProps) {
             <div className="nav-left">
                 <div className="auth-links">
                     <span className="clickable" onClick={() => console.log('로그인')}>로그인</span>
-                    <span className="divider">/</span>
-                    <span className="clickable" onClick={() => console.log('회원가입')}>회원가입</span>
                 </div>
             </div>
             

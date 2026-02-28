@@ -20,6 +20,15 @@
     gap: 20px;
 }
 
+.folder-title {
+    margin: 0 0 18px 2px;
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1.2;
+    color: #1e293b;
+    letter-spacing: -0.3px;
+}
+
 /* 접힌 사이드바 스타일 */
 .sidebar-minimized {
     width: 50px;
