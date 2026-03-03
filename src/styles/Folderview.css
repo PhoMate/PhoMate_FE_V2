@@ -2,9 +2,16 @@
 
 .folder-view-container {
     flex: 1;
-    padding: 40px;
+    padding: 24px;
     background-color: #f4f7fa; /* 메인 배경색과 통일 */
     min-height: 100%;
+}
+
+.folder-section-title {
+    margin: 0 0 40px;
+    font-size: 36px;
+    font-weight: 700;
+    color: #1f2937;
 }
 
 .folder-grid {

@@ -9,7 +9,7 @@ interface FolderModalProps {
   photoCount?: number;
   createdAt?: string;
   usedStorage?: string;
-  onSave?: (name: string) => void;
+  onSave?: (name: string) => boolean | void;
   onDelete?: () => void;
   onClose: () => void;
 }
@@ -23,7 +23,8 @@ export default function FolderModal({ mode = 'settings', folderName, photoCount 
   }, [folderName, mode]);
 
   const handleSave = () => {
-    onSave?.(inputName);
+    const result = onSave?.(inputName);
+    if (result === false) return;
     onClose();
   };
 
@@ -43,8 +44,8 @@ export default function FolderModal({ mode = 'settings', folderName, photoCount 
         
         <div className="modal-header">
           <div className="title-area">
-            <h2 className="modal-title">{mode === 'create' ? '폴더 생성' : '폴더 설정'}</h2>
-            <p className="text-link-btn" style={{ fontSize: '11px', color: '#64748b', textDecoration: 'none' }}>개인 보관함</p>
+            <h2 className="modal-title">{mode === 'create' ? '폴더 생성' : `${folderName} 설정`}</h2>
+            <p className="text-link-btn" style={{ fontSize: '16px', color: '#64748b', textDecoration: 'none' }}>개인 보관함</p>
           </div>
           <button className="close-icon-btn" onClick={onClose}><X size={20} /></button>
         </div>

@@ -96,9 +96,19 @@ export default function Home() {
 
     const handleSaveFolder = (name: string) => {
         const trimmed = name.trim();
-        if (!trimmed) return;
+        if (!trimmed) return false;
 
         if (folderModalMode === 'create') {
+            const normalizedName = trimmed.toLocaleLowerCase();
+            const isDuplicate = folders.some(
+                (folder) => folder.trim().toLocaleLowerCase() === normalizedName
+            );
+
+            if (isDuplicate) {
+                setModalConfig({ type: 'alert', message: '이미 존재하는 폴더 이름입니다.' });
+                return false;
+            }
+
             setFolders((prev) => [...prev, trimmed]);
             setFolderStorageByName((prev) => ({ ...prev, [trimmed]: '0 MB' }));
             setSelectedFolder(trimmed);
@@ -116,6 +126,8 @@ export default function Home() {
                 setSelectedFolder(trimmed);
             }
         }
+
+        return true;
     };
 
     const handleDeleteFolder = () => {
@@ -135,9 +147,19 @@ export default function Home() {
 
     const handleSaveSharedFolder = (nextName: string) => {
         const trimmed = nextName.trim();
-        if (!trimmed) return;
+        if (!trimmed) return false;
 
         if (sharedModalMode === 'create') {
+            const normalizedName = trimmed.toLocaleLowerCase();
+            const isDuplicate = sharedFolders.some(
+                (folder) => folder.trim().toLocaleLowerCase() === normalizedName
+            );
+
+            if (isDuplicate) {
+                setModalConfig({ type: 'alert', message: '이미 존재하는 공유 폴더 이름입니다.' });
+                return false;
+            }
+
             setSharedFolders((prev) => [...prev, trimmed]);
             setSharedFolderStorageByName((prev) => ({ ...prev, [trimmed]: '0 MB' }));
             setSelectedFolder(trimmed);
@@ -164,6 +186,8 @@ export default function Home() {
 
             setSelectedSharedFolderForSettings(trimmed);
         }
+
+        return true;
     };
 
     const handleLeaveSharedFolder = () => {
@@ -246,8 +270,18 @@ export default function Home() {
                                 />
                             ))}
                         </div>
+                    ) : view === 'folder_list' ? (
+                        <FolderView
+                            sectionTitle="폴더"
+                            folders={folders}
+                            onFolderClick={(name) => handleNavigate('folder_child', name)}
+                        />
                     ) : (
-                        <FolderView onFolderClick={(name) => handleNavigate('folder_child', name)} />
+                        <FolderView
+                            sectionTitle="공유 폴더"
+                            folders={sharedFolders}
+                            onFolderClick={(name) => handleNavigate('shared_child', name)}
+                        />
                     )}
 
                     {isNotiOpen && (

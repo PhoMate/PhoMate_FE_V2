@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import '../styles/Sidebar.css';
 
 type SidebarProps = {
@@ -28,6 +28,9 @@ export default function Sidebar({
     onFolderSettingsClick,
     onSharedFolderSettingsClick,
 }: SidebarProps) {
+    const [isFolderSectionOpen, setIsFolderSectionOpen] = useState(true);
+    const [isSharedSectionOpen, setIsSharedSectionOpen] = useState(true);
+
     if (!isOpen) return <div className="sidebar-minimized" onClick={onToggle}><span className="toggle-icon">»</span></div>;
 
     return (
@@ -44,12 +47,22 @@ export default function Sidebar({
             {/* 일반 폴더 섹션 */}
             <div className="sidebar-section">
                 <div className="section-header">
-                    <span className="section-title" onClick={() => onNavClick('folder_parent')}>폴더</span>
+                    <div className="section-title-box">
+                        <button
+                            type="button"
+                            className="section-toggle-btn"
+                            onClick={() => setIsFolderSectionOpen((prev) => !prev)}
+                            aria-label={isFolderSectionOpen ? '폴더 목록 접기' : '폴더 목록 펼치기'}
+                        >
+                            {isFolderSectionOpen ? '▾' : '▸'}
+                        </button>
+                        <span className="section-title" onClick={() => onNavClick('folder_parent')}>폴더</span>
+                    </div>
                     <div className="icon-btn-box" onClick={(e) => { e.stopPropagation(); onPlusClick(); }}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /><line x1="12" y1="11" x2="12" y2="17" /><line x1="9" y1="14" x2="15" y2="14" /></svg>
                     </div>
                 </div>
-                {folders.map((folderName) => (
+                {isFolderSectionOpen && folders.map((folderName) => (
                     <div key={folderName} className="sub-item-row">
                         <div
                             className={`sub-item ${activeNav === `folder_child:${folderName}` ? 'active' : ''}`}
@@ -74,12 +87,22 @@ export default function Sidebar({
             {/* 공유 폴더 섹션 */}
             <div className="sidebar-section">
                 <div className="section-header">
-                    <span className="section-title" onClick={() => onNavClick('shared_parent')}>공유 폴더</span>
+                    <div className="section-title-box">
+                        <button
+                            type="button"
+                            className="section-toggle-btn"
+                            onClick={() => setIsSharedSectionOpen((prev) => !prev)}
+                            aria-label={isSharedSectionOpen ? '공유 폴더 목록 접기' : '공유 폴더 목록 펼치기'}
+                        >
+                            {isSharedSectionOpen ? '▾' : '▸'}
+                        </button>
+                        <span className="section-title" onClick={() => onNavClick('shared_parent')}>공유 폴더</span>
+                    </div>
                     <div className="icon-btn-box" onClick={(e) => { e.stopPropagation(); onLinkClick(); }}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
                     </div>
                 </div>
-                {sharedFolders.map((folderName) => (
+                {isSharedSectionOpen && sharedFolders.map((folderName) => (
                     <div key={folderName} className="sub-item-row">
                         <div
                             className={`sub-item ${activeNav === `shared_child:${folderName}` ? 'active' : ''}`}

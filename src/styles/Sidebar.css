@@ -22,7 +22,7 @@
 
 /* 홈 글자 스타일 (X축은 아래 제목들과 일치) */
 .nav-home-text {
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 600;
   color: #003366;
   cursor: pointer;
@@ -30,7 +30,7 @@
 }
 
 .sidebar-close-btn {
-  font-size: 20px;
+  font-size: 28px;
   color: #9ca3af;
   cursor: pointer;
   line-height: 1;
@@ -49,11 +49,48 @@
   align-items: center;
 }
 
+.section-title-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.section-toggle-btn {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.section-toggle-btn:hover {
+  color: #374151;
+  background-color: #f3f4f6;
+}
+
 .section-title {
   font-size: 16px;
   font-weight: 600;
   color: #003366;
   cursor: pointer;
+}
+
+.icon-btn-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  color: #6b7280;
+}
+
+.icon-btn-box:hover {
+  background: #f3f4f6;
+  color: #374151;
 }
 
 /* 서브 아이템 (선택 시 진하게 변경) */

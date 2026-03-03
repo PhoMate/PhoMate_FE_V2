@@ -31,7 +31,7 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
 }
 
 .modal-title {
@@ -62,7 +62,7 @@
 
 .section-label {
     display: block;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
     color: #64748b;
     margin-bottom: 10px;
@@ -125,7 +125,7 @@
 
 /* 관리 옵션 (삭제 영역) */
 .member-list-area {
-    margin-bottom: 32px;
+    margin-bottom: 12px;
 }
 
 .member-item-card {

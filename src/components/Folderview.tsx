@@ -2,14 +2,15 @@ import React from 'react';
 import '../styles/Folderview.css';
 
 interface FolderViewProps {
+    sectionTitle: string;
+    folders: string[];
     onFolderClick: (name: string) => void;
 }
 
-export default function FolderView({ onFolderClick }: FolderViewProps) {
-    const folders = ['폴더 1', '폴더 2', '폴더 3'];
-
+export default function FolderView({ sectionTitle, folders, onFolderClick }: FolderViewProps) {
     return (
         <div className="folder-view-container">
+            <h3 className="folder-section-title">{sectionTitle}</h3>
             <div className="folder-grid">
                 {folders.map((name, index) => (
                     <div 

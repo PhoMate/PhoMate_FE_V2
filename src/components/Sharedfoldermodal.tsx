@@ -6,7 +6,7 @@ import '../styles/SharedFolderModal.css';
 interface SharedFolderModalProps {
   mode?: 'create' | 'settings';
   folderName: string;
-  onSave: (nextName: string) => void;
+  onSave: (nextName: string) => boolean | void;
   onLeave?: () => void;
   onClose: () => void;
 }
@@ -42,7 +42,8 @@ export default function SharedFolderModal({ mode = 'settings', folderName, onSav
   const handleSave = () => {
     const trimmed = inputName.trim();
     if (!trimmed) return;
-    onSave(trimmed);
+    const result = onSave(trimmed);
+    if (result === false) return;
     onClose();
   };
 
@@ -73,8 +74,8 @@ export default function SharedFolderModal({ mode = 'settings', folderName, onSav
         {/* 헤더 섹션: 이름 수정 및 닫기 버튼 */}
         <div className="modal-header">
           <div className="title-area">
-            <h2 className="modal-title">{mode === 'create' ? '공유 폴더 생성' : '공유 폴더 설정'}</h2>
-            <button className="text-link-btn">{mode === 'create' ? '공유 보관함' : folderName}</button>
+            <h2 className="modal-title">{mode === 'create' ? '공유 폴더 생성' : `${folderName} 설정`}</h2>
+            <button className="text-link-btn">{mode === 'create' ? '공유 보관함' : '공유 사진 보관함'}</button>
           </div>
           <button className="close-icon-btn" onClick={onClose}><X size={20} /></button>
         </div>
