@@ -9,8 +9,8 @@ interface FolderModalProps {
   photoCount?: number;
   createdAt?: string;
   usedStorage?: string;
-  onSave?: (name: string) => boolean | void;
-  onDelete?: () => void;
+  onSave?: (name: string) => boolean | void | Promise<boolean | void>;
+  onDelete?: () => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -22,8 +22,8 @@ export default function FolderModal({ mode = 'settings', folderName, photoCount 
     setInputName(folderName);
   }, [folderName, mode]);
 
-  const handleSave = () => {
-    const result = onSave?.(inputName);
+  const handleSave = async () => {
+    const result = await Promise.resolve(onSave?.(inputName));
     if (result === false) return;
     onClose();
   };
@@ -32,8 +32,8 @@ export default function FolderModal({ mode = 'settings', folderName, photoCount 
     setIsDeleteConfirmOpen(true);
   };
 
-  const handleConfirmDelete = () => {
-    onDelete?.();
+  const handleConfirmDelete = async () => {
+    await Promise.resolve(onDelete?.());
     setIsDeleteConfirmOpen(false);
     onClose();
   };

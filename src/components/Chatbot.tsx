@@ -48,7 +48,9 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, onSearchR
     const [isSending, setIsSending] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [folderPreview, setFolderPreview] = useState<FolderPreviewState | null>(null);
+    const [isEditDragOver, setIsEditDragOver] = useState(false);
     const bodyRef = useRef<HTMLDivElement | null>(null);
+    const localEditPreviewUrlRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (!isOpen || sessionId) return;
@@ -83,6 +85,30 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, onSearchR
         if (!bodyRef.current) return;
         bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
     }, [messages, errorMessage]);
+
+    useEffect(() => {
+        return () => {
+            if (!localEditPreviewUrlRef.current) return;
+            URL.revokeObjectURL(localEditPreviewUrlRef.current);
+            localEditPreviewUrlRef.current = null;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!isOpen || activeTab !== 'edit') return;
+
+        const blockDefaultDrop = (event: DragEvent) => {
+            event.preventDefault();
+        };
+
+        window.addEventListener('dragover', blockDefaultDrop);
+        window.addEventListener('drop', blockDefaultDrop);
+
+        return () => {
+            window.removeEventListener('dragover', blockDefaultDrop);
+            window.removeEventListener('drop', blockDefaultDrop);
+        };
+    }, [activeTab, isOpen]);
 
     const ensureSessionId = async (): Promise<number> => {
         if (sessionId !== null) return sessionId;
@@ -351,6 +377,103 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, onSearchR
         }
     };
 
+    const applyDroppedEditImage = (file: File) => {
+        if (!file.type.startsWith('image/')) {
+            setErrorMessage('이미지 파일만 드롭할 수 있습니다.');
+            return;
+        }
+
+        if (localEditPreviewUrlRef.current) {
+            URL.revokeObjectURL(localEditPreviewUrlRef.current);
+            localEditPreviewUrlRef.current = null;
+        }
+
+        const objectUrl = URL.createObjectURL(file);
+        localEditPreviewUrlRef.current = objectUrl;
+        setEditedImageUrl(objectUrl);
+        setEditAssistantContent('드롭한 이미지가 편집 미리보기에 적용되었습니다.');
+        setErrorMessage('');
+    };
+
+    const isLikelyImageUrl = (value: string): boolean => {
+        const trimmed = value.trim();
+        if (!trimmed) return false;
+        if (trimmed.startsWith('blob:') || trimmed.startsWith('data:image/')) return true;
+        return /\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i.test(trimmed);
+    };
+
+    const applyDroppedEditUrl = (url: string) => {
+        const trimmed = url.trim();
+        if (!trimmed || !isLikelyImageUrl(trimmed)) {
+            setErrorMessage('이미지 URL만 드롭할 수 있습니다.');
+            return;
+        }
+
+        if (localEditPreviewUrlRef.current) {
+            URL.revokeObjectURL(localEditPreviewUrlRef.current);
+            localEditPreviewUrlRef.current = null;
+        }
+
+        setEditedImageUrl(trimmed);
+        setEditAssistantContent('드롭한 이미지가 편집 미리보기에 적용되었습니다.');
+        setErrorMessage('');
+    };
+
+    const handleEditDrop = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsEditDragOver(false);
+
+        const directFile = event.dataTransfer.files?.[0];
+        if (directFile) {
+            applyDroppedEditImage(directFile);
+            return;
+        }
+
+        const fromItems = Array.from(event.dataTransfer.items || [])
+            .map((item) => item.getAsFile())
+            .find((file): file is File => !!file);
+
+        if (fromItems) {
+            applyDroppedEditImage(fromItems);
+            return;
+        }
+
+        const uriList = event.dataTransfer.getData('text/uri-list');
+        if (uriList) {
+            const firstUrl = uriList
+                .split(/\r?\n/)
+                .map((line) => line.trim())
+                .find((line) => !!line && !line.startsWith('#'));
+            if (firstUrl) {
+                applyDroppedEditUrl(firstUrl);
+                return;
+            }
+        }
+
+        const plainText = event.dataTransfer.getData('text/plain');
+        if (plainText) {
+            applyDroppedEditUrl(plainText);
+            return;
+        }
+
+        setErrorMessage('드롭된 파일을 읽지 못했습니다.');
+    };
+
+    const handleEditDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isEditDragOver) {
+            setIsEditDragOver(true);
+        }
+    };
+
+    const handleEditDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsEditDragOver(false);
+    };
+
     if (!isOpen) {
         return (
             <button className="chatbot-open-trigger" onClick={onOpen}>
@@ -419,11 +542,17 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, onSearchR
                         </div>
                     ) : (
                         <div className="edit-view">
-                            <div className="edit-preview-area">
+                            <div
+                                className={`edit-preview-area ${isEditDragOver ? 'drag-over' : ''}`}
+                                onDragOver={handleEditDragOver}
+                                onDragEnter={handleEditDragOver}
+                                onDragLeave={handleEditDragLeave}
+                                onDrop={handleEditDrop}
+                            >
                                 {editedImageUrl ? (
                                     <img src={editedImageUrl} alt="편집 결과" className="edit-preview-image" />
                                 ) : (
-                                    <p className="preview-placeholder">편집할 이미지를 선택해주세요.</p>
+                                    <p className="preview-placeholder">편집할 이미지를 여기에 드래그해서 놓아주세요.</p>
                                 )}
                             </div>
                             {editAssistantContent ? (

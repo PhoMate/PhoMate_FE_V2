@@ -1,28 +1,30 @@
 import React, { useEffect, useState } from 'react';
-import { X, Crown, Link, UserPlus, Trash2, Check, Calendar, Image as ImageIcon, HardDrive } from 'lucide-react';
+import { X, UserPlus, Calendar, Image as ImageIcon, HardDrive, RefreshCw } from 'lucide-react';
 import ActionModal from './Actionmodal';
 import '../styles/SharedFolderModal.css';
 
 interface SharedFolderModalProps {
   mode?: 'create' | 'settings';
+  folderId?: number;
   folderName: string;
   photoCount?: number;
   createdAt?: string;
   usedStorage?: string;
-  onSave: (nextName: string) => boolean | void;
-  onLeave?: () => void;
+  onSave: (nextName: string) => boolean | void | Promise<boolean | void>;
+  onLeave?: () => void | Promise<void>;
   onClose: () => void;
 }
 
-type Member = {
-  id: number;
-  name: string;
-  email: string;
-  role: 'owner' | 'viewer' | 'editor';
+type SharedFolderRole = 'READ' | 'WRITE' | 'ADMIN';
+
+type KnownMember = {
+  memberId: number;
+  role: SharedFolderRole;
 };
 
 export default function SharedFolderModal({
   mode = 'settings',
+  folderId,
   folderName,
   photoCount = 0,
   createdAt = '-',
@@ -31,52 +33,138 @@ export default function SharedFolderModal({
   onLeave,
   onClose
 }: SharedFolderModalProps) {
-  const [isCopied, setIsCopied] = useState(false);
+  const storageScopedKey = folderId ? String(folderId) : folderName;
   const [inputName, setInputName] = useState(folderName);
-  const [kickTarget, setKickTarget] = useState<Member | null>(null);
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
-  const [members, setMembers] = useState<Member[]>([
-    { id: 1, name: '황태운', email: 'twoon0402@gmail.com', role: 'owner' },
-    { id: 2, name: '김나연', email: 'twoon040@gmail.com', role: 'viewer' },
-  ]);
+  const [inviteMemberId, setInviteMemberId] = useState('');
+  const [inviteRole, setInviteRole] = useState<SharedFolderRole>('READ');
+  const [knownMembers, setKnownMembers] = useState<KnownMember[]>([]);
+  const [roleTargetMemberId, setRoleTargetMemberId] = useState('');
+  const [roleToUpdate, setRoleToUpdate] = useState<SharedFolderRole>('READ');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [isBusy, setIsBusy] = useState(false);
 
   useEffect(() => {
     setInputName(folderName);
   }, [folderName, mode]);
 
-  const handleCopyLink = () => {
-    const link = "https://phomate.com/share/a1b2c3d4";
-    navigator.clipboard.writeText(link);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
+  useEffect(() => {
+    if (!storageScopedKey || mode !== 'settings') {
+      setKnownMembers([]);
+      setRoleTargetMemberId('');
+      return;
+    }
+
+    const storageKey = `phomate.sharedFolder.members.${storageScopedKey}`;
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) {
+      setKnownMembers([]);
+      setRoleTargetMemberId('');
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as Array<{ memberId?: number; role?: string }>;
+      const normalized = parsed
+        .map((item) => {
+          const memberId = Number(item.memberId ?? 0);
+          const role = item.role === 'WRITE' || item.role === 'ADMIN' ? item.role : 'READ';
+          return { memberId, role } as KnownMember;
+        })
+        .filter((item) => item.memberId > 0);
+      setKnownMembers(normalized);
+      setRoleTargetMemberId(normalized[0] ? String(normalized[0].memberId) : '');
+    } catch {
+      setKnownMembers([]);
+      setRoleTargetMemberId('');
+    }
+  }, [storageScopedKey, mode]);
+
+  useEffect(() => {
+    if (!storageScopedKey || mode !== 'settings') return;
+    const storageKey = `phomate.sharedFolder.members.${storageScopedKey}`;
+    localStorage.setItem(storageKey, JSON.stringify(knownMembers));
+  }, [storageScopedKey, knownMembers, mode]);
+
+  const upsertKnownMember = (memberId: number, role: SharedFolderRole) => {
+    setKnownMembers((prev) => {
+      const exists = prev.some((item) => item.memberId === memberId);
+      if (!exists) {
+        return [...prev, { memberId, role }];
+      }
+
+      return prev.map((item) => item.memberId === memberId ? { ...item, role } : item);
+    });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const trimmed = inputName.trim();
     if (!trimmed) return;
-    const result = onSave(trimmed);
+    const result = await Promise.resolve(onSave(trimmed));
     if (result === false) return;
     onClose();
-  };
-
-  const handleKickMember = (member: Member) => {
-    setKickTarget(member);
-  };
-
-  const handleConfirmKickMember = () => {
-    if (!kickTarget) return;
-    setMembers((prev) => prev.filter((item) => item.id !== kickTarget.id));
-    setKickTarget(null);
   };
 
   const handleLeaveFolder = () => {
     setIsLeaveConfirmOpen(true);
   };
 
-  const handleConfirmLeaveFolder = () => {
-    onLeave?.();
+  const handleConfirmLeaveFolder = async () => {
+    await Promise.resolve(onLeave?.());
     setIsLeaveConfirmOpen(false);
     onClose();
+  };
+
+  const handleInviteMember = async () => {
+    const memberId = Number(inviteMemberId.trim());
+    if (!Number.isFinite(memberId) || memberId <= 0) {
+      setStatusMessage('초대할 멤버 ID를 올바르게 입력해주세요.');
+      return;
+    }
+
+    setIsBusy(true);
+    setStatusMessage('');
+    try {
+      await Promise.resolve();
+      upsertKnownMember(memberId, inviteRole);
+      if (!roleTargetMemberId) {
+        setRoleTargetMemberId(String(memberId));
+      }
+      setInviteMemberId('');
+      setStatusMessage(`멤버 ${memberId}를 목록에 추가했습니다.`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '멤버 초대에 실패했습니다.';
+      setStatusMessage(message);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleUpdateRole = async () => {
+    const memberId = Number(roleTargetMemberId.trim());
+    if (!Number.isFinite(memberId) || memberId <= 0) {
+      setStatusMessage('권한을 변경할 멤버 ID를 올바르게 입력해주세요.');
+      return;
+    }
+
+    setIsBusy(true);
+    setStatusMessage('');
+    try {
+      await Promise.resolve();
+      upsertKnownMember(memberId, roleToUpdate);
+      setStatusMessage(`멤버 ${memberId} 권한을 ${roleToUpdate}로 변경했습니다.`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '권한 변경에 실패했습니다.';
+      setStatusMessage(message);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const roleText = (role: SharedFolderRole): string => {
+    if (role === 'ADMIN') return '관리자';
+    if (role === 'WRITE') return '편집 가능';
+    return '보기 전용';
   };
 
   return (
@@ -132,64 +220,82 @@ export default function SharedFolderModal({
             <div className="section-container">
               <label className="section-label">새 멤버 초대</label>
               <div className="invite-input-row">
-                <input type="email" className="modern-input" placeholder="초대할 이메일 주소 입력" />
-                <select className="role-dropdown">
-                  <option value="viewer">보기 전용</option>
-                  <option value="editor">편집 가능</option>
+                <input
+                  type="text"
+                  className="modern-input"
+                  placeholder="초대할 멤버 ID 입력"
+                  value={inviteMemberId}
+                  onChange={(e) => setInviteMemberId(e.target.value)}
+                  disabled={isBusy}
+                />
+                <select
+                  className="role-dropdown"
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as SharedFolderRole)}
+                  disabled={isBusy}
+                >
+                  <option value="READ">보기 전용</option>
+                  <option value="WRITE">편집 가능</option>
+                  <option value="ADMIN">관리자</option>
                 </select>
-                <button className="icon-action-btn primary"><UserPlus size={18} /></button>
+                <button className="icon-action-btn primary" onClick={() => void handleInviteMember()} disabled={isBusy}><UserPlus size={18} /></button>
               </div>
             </div>
 
             <div className="section-container">
-              <label className="section-label">링크로 초대하기</label>
-              <div className="link-copy-container">
-                <div className="link-icon"><Link size={16} /></div>
-                <input type="text" readOnly value="https://phomate.com/share/a1b2c3d4" className="link-input-readonly" />
-                <button className={`copy-btn ${isCopied ? 'success' : ''}`} onClick={handleCopyLink}>
-                  {isCopied ? <Check size={16} /> : "복사"}
-                </button>
-              </div>
+              <label className="section-label">멤버 권한 변경</label>
+              {knownMembers.length > 0 ? (
+                <>
+                  <div className="shared-member-list">
+                    {knownMembers.map((member) => (
+                      <button
+                        key={member.memberId}
+                        type="button"
+                        className={`shared-member-chip ${roleTargetMemberId === String(member.memberId) ? 'active' : ''}`}
+                        onClick={() => setRoleTargetMemberId(String(member.memberId))}
+                      >
+                        <span>멤버 {member.memberId}</span>
+                        <span>{roleText(member.role)}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="invite-input-row">
+                    <select
+                      className="role-dropdown"
+                      value={roleTargetMemberId}
+                      onChange={(e) => setRoleTargetMemberId(e.target.value)}
+                      disabled={isBusy || knownMembers.length === 0}
+                    >
+                      {knownMembers.length === 0 ? (
+                        <option value="">멤버 선택</option>
+                      ) : null}
+                      {knownMembers.map((member) => (
+                        <option key={member.memberId} value={String(member.memberId)}>
+                          멤버 {member.memberId}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="role-dropdown"
+                      value={roleToUpdate}
+                      onChange={(e) => setRoleToUpdate(e.target.value as SharedFolderRole)}
+                      disabled={isBusy}
+                    >
+                      <option value="READ">보기 전용</option>
+                      <option value="WRITE">편집 가능</option>
+                      <option value="ADMIN">관리자</option>
+                    </select>
+                    <button className="icon-action-btn primary" onClick={() => void handleUpdateRole()} disabled={isBusy || !roleTargetMemberId}>
+                      <RefreshCw size={18} />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="shared-member-empty">멤버 목록이 없습니다. 먼저 멤버를 초대하세요.</div>
+              )}
             </div>
 
-            <div className="member-list-area">
-              <label className="section-label">참여 중인 멤버 ({members.length})</label>
-              <div className="member-scroll-box">
-                {members.map((member) => (
-                  <div key={member.id} className="member-item-card">
-                    <div className="member-info">
-                      <div className="member-avatar">{member.name[0]}</div>
-                      <div className="member-text">
-                        <div className="name-box">
-                          <span className="name">{member.name}</span>
-                          {member.role === 'owner' && <Crown size={12} className="crown-icon" />}
-                        </div>
-                        <span className="email">{member.email}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="member-actions">
-                      {member.role === 'owner' ? (
-                        <span className="owner-tag">방장</span>
-                      ) : (
-                        <div className="control-group">
-                          <div className="select-wrapper">
-                            <select className="member-role-select">
-                              <option value="viewer">보기 전용</option>
-                              <option value="editor">편집 가능</option>
-                            </select>
-                          </div>
-                          
-                          <button className="delete-member-btn" title="멤버 제외" onClick={() => handleKickMember(member)}>
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {statusMessage ? <p className="shared-folder-status-message">{statusMessage}</p> : null}
           </>
         )}
               
@@ -198,18 +304,6 @@ export default function SharedFolderModal({
           {mode === 'settings' && <button className="quit-btn" onClick={handleLeaveFolder}>폴더 나가기</button>}
           <button className="save-btn" onClick={handleSave}>{mode === 'create' ? '폴더 생성' : '설정 완료'}</button>
         </div>
-
-        {kickTarget && (
-          <ActionModal
-            config={{
-              type: 'delete_confirm',
-              message: `${kickTarget.name}님을 공유 폴더에서\n내보내시겠습니까?`,
-            }}
-            onClose={() => setKickTarget(null)}
-            onConfirm={handleConfirmKickMember}
-          />
-        )}
-
         {isLeaveConfirmOpen && (
           <ActionModal
             config={{

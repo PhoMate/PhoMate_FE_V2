@@ -117,6 +117,14 @@
 
 .copy-btn.success { background: #10b981; }
 
+.copy-btn:disabled,
+.icon-action-btn.primary:disabled,
+.save-btn:disabled,
+.quit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .folder-summary-box {
     padding: 12px 16px;
 }
@@ -145,6 +153,94 @@
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.shared-status-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.shared-status-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #f8fafc;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.shared-status-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.shared-status-value {
+    color: #0f172a;
+    font-size: 16px;
+}
+
+.shared-inline-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.shared-inline-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+}
+
+.shared-folder-helper-text {
+    margin: 8px 4px 0;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.shared-folder-status-message {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.shared-member-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.shared-member-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #334155;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.shared-member-chip.active {
+    border-color: #003366;
+    background: #e6efff;
+    color: #003366;
+}
+
+.shared-member-empty {
+    margin-bottom: 10px;
+    color: #64748b;
+    font-size: 12px;
 }
 
 /* 멤버 카드 디자인 */

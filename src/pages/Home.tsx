@@ -154,6 +154,23 @@ export default function Home() {
     const [photoSizeBytesById, setPhotoSizeBytesById] = useState<Record<string, number>>({});
     const [memberProfile, setMemberProfile] = useState<MemberProfile | null>(null);
     const uploadNotificationStatusRef = useRef<Record<string, UploadTaskStatus>>({});
+    const authExpiryAlertShownRef = useRef(false);
+
+    const isUnauthorizedError = (error: unknown): boolean => {
+        if (!(error instanceof Error)) return false;
+        const message = error.message.toLowerCase();
+        return message.includes('401') || message.includes('unauthorized');
+    };
+
+    const handleUnauthorizedError = () => {
+        clearAuthTokens();
+        setIsLoggedIn(false);
+        setMemberProfile(null);
+
+        if (authExpiryAlertShownRef.current) return;
+        authExpiryAlertShownRef.current = true;
+        window.alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+    };
 
     useEffect(() => {
         let mounted = true;
@@ -162,6 +179,7 @@ export default function Home() {
             .then((handled) => {
                 if (!mounted) return;
                 if (handled) {
+                    authExpiryAlertShownRef.current = false;
                     setIsLoggedIn(true);
                 }
             })
@@ -178,6 +196,7 @@ export default function Home() {
 
     const handleLogin = async () => {
         try {
+            authExpiryAlertShownRef.current = false;
             await beginGoogleLogin();
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : '로그인을 시작할 수 없습니다.';
@@ -187,6 +206,7 @@ export default function Home() {
 
     const handleLogout = () => {
         clearAuthTokens();
+        authExpiryAlertShownRef.current = false;
         setIsLoggedIn(false);
         setMemberProfile(null);
         setMyPhotos([]);
@@ -227,16 +247,22 @@ export default function Home() {
         ].slice(0, 30));
     };
 
-    const loadMyProfile = async () => {
-        if (!isAuthenticated()) return;
+    const loadMyProfile = async (): Promise<MemberProfile | null> => {
+        if (!isAuthenticated()) return null;
 
         try {
             const profile = await getMyMember();
             setMemberProfile(profile);
+            return profile;
         } catch (error: unknown) {
             setMemberProfile(null);
+            if (isUnauthorizedError(error)) {
+                handleUnauthorizedError();
+                return null;
+            }
             const message = error instanceof Error ? error.message : '내 정보 조회에 실패했습니다.';
             window.alert(message);
+            return null;
         }
     };
 
@@ -262,6 +288,10 @@ export default function Home() {
             });
             return normalized;
         } catch (error: unknown) {
+            if (isUnauthorizedError(error)) {
+                handleUnauthorizedError();
+                return [];
+            }
             const message = error instanceof Error ? error.message : '앨범을 불러오지 못했습니다.';
             window.alert(message);
             return [];
@@ -310,8 +340,18 @@ export default function Home() {
 
     useEffect(() => {
         if (!isLoggedIn) return;
-        void loadAlbum();
-        void loadMyProfile();
+        let mounted = true;
+
+        void (async () => {
+            const profile = await loadMyProfile();
+            if (!mounted || !profile) return;
+
+            await loadAlbum();
+        })();
+
+        return () => {
+            mounted = false;
+        };
     }, [isLoggedIn]);
 
     useEffect(() => {
@@ -639,169 +679,186 @@ export default function Home() {
                 setModalConfig({ type: 'alert', message: '이미 존재하는 폴더 이름입니다.' });
                 return false;
             }
+            const nextName = trimmed;
 
-            setFolders((prev) => [...prev, trimmed]);
-            setFolderStorageByName((prev) => ({ ...prev, [trimmed]: '0 MB' }));
-            setFolderCreatedAtByName((prev) => ({ ...prev, [trimmed]: todayDateText }));
-            setFolderPhotoIdsByName((prev) => ({ ...prev, [trimmed]: [] }));
-            setSelectedFolder(trimmed);
+            setFolders((prev) => [...prev, nextName]);
+            setFolderStorageByName((prev) => ({ ...prev, [nextName]: '0 MB' }));
+            setFolderCreatedAtByName((prev) => ({
+                ...prev,
+                [nextName]: todayDateText
+            }));
+            setFolderPhotoIdsByName((prev) => ({ ...prev, [nextName]: [] }));
+            setSelectedFolder(nextName);
             setView('folder_detail');
+
             pushNotification({
                 kind: 'folder',
                 title: '폴더 생성됨',
-                message: `'${trimmed}' 폴더가 생성되었습니다.`,
-                targetFolder: trimmed,
+                message: `'${nextName}' 폴더가 생성되었습니다.`,
+                targetFolder: nextName,
                 targetView: 'folder_detail'
             });
-        } else {
-            setFolders((prev) => prev.map((folder) => folder === selectedFolderForSettings ? trimmed : folder));
-            setFolderStorageByName((prev) => {
-                const currentStorage = prev[selectedFolderForSettings] ?? '0 MB';
-                const next = { ...prev };
-                delete next[selectedFolderForSettings];
-                next[trimmed] = currentStorage;
-                return next;
-            });
-            setFolderPhotoIdsByName((prev) => {
-                const currentPhotoIds = prev[selectedFolderForSettings] ?? [];
-                const next = { ...prev };
-                delete next[selectedFolderForSettings];
-                next[trimmed] = currentPhotoIds;
-                return next;
-            });
-            setFolderCreatedAtByName((prev) => {
-                const currentCreatedAt = prev[selectedFolderForSettings] ?? todayDateText;
-                const next = { ...prev };
-                delete next[selectedFolderForSettings];
-                next[trimmed] = currentCreatedAt;
-                return next;
-            });
-            if (selectedFolder === selectedFolderForSettings) {
-                setSelectedFolder(trimmed);
-            }
+
+            return true;
         }
 
+        const sourceName = selectedFolderForSettings;
+        const nextName = trimmed;
+
+        setFolders((prev) => prev.map((folder) => folder === sourceName ? nextName : folder));
+        setFolderStorageByName((prev) => {
+            const currentStorage = prev[sourceName] ?? '0 MB';
+            const next = { ...prev };
+            delete next[sourceName];
+            next[nextName] = currentStorage;
+            return next;
+        });
+        setFolderPhotoIdsByName((prev) => {
+            const currentPhotoIds = prev[sourceName] ?? [];
+            const next = { ...prev };
+            delete next[sourceName];
+            next[nextName] = currentPhotoIds;
+            return next;
+        });
+        setFolderCreatedAtByName((prev) => {
+            const currentCreatedAt = prev[sourceName] ?? todayDateText;
+            const next = { ...prev };
+            delete next[sourceName];
+            next[nextName] = currentCreatedAt;
+            return next;
+        });
+        if (selectedFolder === sourceName) {
+            setSelectedFolder(nextName);
+        }
+        setSelectedFolderForSettings(nextName);
         return true;
     };
 
     const handleDeleteFolder = () => {
-        const target = selectedFolderForSettings;
-        setFolders((prev) => prev.filter((folder) => folder !== target));
-        setFolderStorageByName((prev) => {
-            const next = { ...prev };
-            delete next[target];
-            return next;
-        });
-        setFolderPhotoIdsByName((prev) => {
-            const next = { ...prev };
-            delete next[target];
-            return next;
-        });
-        setFolderCreatedAtByName((prev) => {
-            const next = { ...prev };
-            delete next[target];
-            return next;
-        });
+            const target = selectedFolderForSettings;
 
-        if (selectedFolder === target) {
-            setSelectedFolder(null);
-            setView('folder_list');
-        }
-    };
+            setFolders((prev) => prev.filter((folder) => folder !== target));
+            setFolderStorageByName((prev) => {
+                const next = { ...prev };
+                delete next[target];
+                return next;
+            });
+            setFolderPhotoIdsByName((prev) => {
+                const next = { ...prev };
+                delete next[target];
+                return next;
+            });
+            setFolderCreatedAtByName((prev) => {
+                const next = { ...prev };
+                delete next[target];
+                return next;
+            });
 
-    const handleSaveSharedFolder = (nextName: string) => {
-        const trimmed = nextName.trim();
-        if (!trimmed) return false;
+            if (selectedFolder === target) {
+                setSelectedFolder(null);
+                setView('folder_list');
+            }
+        };
 
-        if (sharedModalMode === 'create') {
-            const normalizedName = trimmed.toLocaleLowerCase();
-            const isDuplicate = sharedFolders.some(
-                (folder) => folder.trim().toLocaleLowerCase() === normalizedName
-            );
+        const handleSaveSharedFolder = (nextName: string) => {
+            const trimmed = nextName.trim();
+            if (!trimmed) return false;
 
-            if (isDuplicate) {
-                setModalConfig({ type: 'alert', message: '이미 존재하는 공유 폴더 이름입니다.' });
-                return false;
+            if (sharedModalMode === 'create') {
+                const normalizedName = trimmed.toLocaleLowerCase();
+                const isDuplicate = sharedFolders.some(
+                    (folder) => folder.trim().toLocaleLowerCase() === normalizedName
+                );
+
+                if (isDuplicate) {
+                    setModalConfig({ type: 'alert', message: '이미 존재하는 공유 폴더 이름입니다.' });
+                    return false;
+                }
+
+                const resolvedName = trimmed;
+
+                setSharedFolders((prev) => [...prev, resolvedName]);
+                setSharedFolderStorageByName((prev) => ({ ...prev, [resolvedName]: '0 MB' }));
+                setSharedFolderCreatedAtByName((prev) => ({
+                    ...prev,
+                    [resolvedName]: todayDateText
+                }));
+                setSharedFolderPhotosByName((prev) => ({ ...prev, [resolvedName]: [] }));
+                setSelectedFolder(resolvedName);
+                setView('shared_detail');
+                setSelectedSharedFolderForSettings(resolvedName);
+                pushNotification({
+                    kind: 'shared_folder',
+                    title: '공유 폴더 생성됨',
+                    message: `'${resolvedName}' 공유 폴더가 생성되었습니다.`,
+                    targetFolder: resolvedName,
+                    targetView: 'shared_detail'
+                });
+                return true;
             }
 
-            setSharedFolders((prev) => [...prev, trimmed]);
-            setSharedFolderStorageByName((prev) => ({ ...prev, [trimmed]: '0 MB' }));
-            setSharedFolderCreatedAtByName((prev) => ({ ...prev, [trimmed]: todayDateText }));
-            setSharedFolderPhotosByName((prev) => ({ ...prev, [trimmed]: [] }));
-            setSelectedFolder(trimmed);
-            setView('shared_detail');
-            setSelectedSharedFolderForSettings(trimmed);
-            pushNotification({
-                kind: 'shared_folder',
-                title: '공유 폴더 생성됨',
-                message: `'${trimmed}' 공유 폴더가 생성되었습니다.`,
-                targetFolder: trimmed,
-                targetView: 'shared_detail'
-            });
-        } else {
+            const sourceName = selectedSharedFolderForSettings;
+            const resolvedName = trimmed;
+
             setSharedFolders((prev) =>
-                prev.map((folder) =>
-                    folder === selectedSharedFolderForSettings ? trimmed : folder
-                )
+                prev.map((folder) => (folder === sourceName ? resolvedName : folder))
             );
 
             setSharedFolderStorageByName((prev) => {
-                const currentStorage = prev[selectedSharedFolderForSettings] ?? '0 MB';
+                const currentStorage = prev[sourceName] ?? '0 MB';
                 const next = { ...prev };
-                delete next[selectedSharedFolderForSettings];
-                next[trimmed] = currentStorage;
+                delete next[sourceName];
+                next[resolvedName] = currentStorage;
                 return next;
             });
             setSharedFolderPhotosByName((prev) => {
-                const currentPhotos = prev[selectedSharedFolderForSettings] ?? [];
+                const currentPhotos = prev[sourceName] ?? [];
                 const next = { ...prev };
-                delete next[selectedSharedFolderForSettings];
-                next[trimmed] = currentPhotos;
+                delete next[sourceName];
+                next[resolvedName] = currentPhotos;
                 return next;
             });
             setSharedFolderCreatedAtByName((prev) => {
-                const currentCreatedAt = prev[selectedSharedFolderForSettings] ?? todayDateText;
+                const currentCreatedAt = prev[sourceName] ?? todayDateText;
                 const next = { ...prev };
-                delete next[selectedSharedFolderForSettings];
-                next[trimmed] = currentCreatedAt;
+                delete next[sourceName];
+                next[resolvedName] = currentCreatedAt;
                 return next;
             });
 
-            if (selectedFolder === selectedSharedFolderForSettings) {
-                setSelectedFolder(trimmed);
+            if (selectedFolder === sourceName) {
+                setSelectedFolder(resolvedName);
             }
 
-            setSelectedSharedFolderForSettings(trimmed);
-        }
+            setSelectedSharedFolderForSettings(resolvedName);
+            return true;
+        };
 
-        return true;
-    };
+        const handleLeaveSharedFolder = () => {
+            const target = selectedSharedFolderForSettings;
 
-    const handleLeaveSharedFolder = () => {
-        const target = selectedSharedFolderForSettings;
+            setSharedFolders((prev) => prev.filter((folder) => folder !== target));
+            setSharedFolderStorageByName((prev) => {
+                const next = { ...prev };
+                delete next[target];
+                return next;
+            });
+            setSharedFolderPhotosByName((prev) => {
+                const next = { ...prev };
+                delete next[target];
+                return next;
+            });
+            setSharedFolderCreatedAtByName((prev) => {
+                const next = { ...prev };
+                delete next[target];
+                return next;
+            });
 
-        setSharedFolders((prev) => prev.filter((folder) => folder !== target));
-        setSharedFolderStorageByName((prev) => {
-            const next = { ...prev };
-            delete next[target];
-            return next;
-        });
-        setSharedFolderPhotosByName((prev) => {
-            const next = { ...prev };
-            delete next[target];
-            return next;
-        });
-        setSharedFolderCreatedAtByName((prev) => {
-            const next = { ...prev };
-            delete next[target];
-            return next;
-        });
-
-        if (selectedFolder === target) {
-            setSelectedFolder(null);
-            setView('shared_list');
-        }
-    };
+            if (selectedFolder === target) {
+                setSelectedFolder(null);
+                setView('shared_list');
+            }
+        };
 
     const activeNavKey =
         view === 'home' ? 'home' :

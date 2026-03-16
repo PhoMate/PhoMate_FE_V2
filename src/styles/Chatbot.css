@@ -105,11 +105,18 @@
     width: 100%;
     aspect-ratio: 1.1;
     background: #F8FAFC;
+    border: 2px dashed transparent;
     border-radius: 24px;
     margin-bottom: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+.edit-preview-area.drag-over {
+    border-color: #003366;
+    background: #eef4ff;
 }
 
 .preview-placeholder {
