@@ -14,6 +14,8 @@ type SidebarProps = {
     onPlusClick: () => void;
     onLinkClick: () => void;
     onStorageClick: () => void;
+    onLoginClick?: () => void;
+    isLoggedIn?: boolean;
     onLogoutClick?: () => void;
     onFolderSettingsClick: (name: string) => void;
     onSharedFolderSettingsClick: (name: string) => void;
@@ -33,6 +35,8 @@ export default function Sidebar({
     onLinkClick,
     onStorageClick,
     onLogoutClick,
+    onLoginClick,
+    isLoggedIn = false,
     onFolderSettingsClick,
     onSharedFolderSettingsClick,
 }: SidebarProps) {
@@ -44,8 +48,8 @@ export default function Sidebar({
     return (
         <aside className="sidebar">
             <div className="sidebar-header">
-                <div 
-                    className={`nav-home-text ${activeNav === 'home' ? 'active' : ''}`} 
+                <div
+                    className={`nav-home-text ${activeNav === 'home' ? 'active' : ''}`}
                     onClick={() => onNavClick('home')}
                 >홈
                 </div>
@@ -132,11 +136,10 @@ export default function Sidebar({
                 ))}
             </div>
 
-            {/* 하단 영역: 최근 삭제된 항목 + 저장공간 */}
+            {/* 하단 영역 */}
             <div className="sidebar-footer">
-                {/* [추가] 최근 삭제된 항목 칸 */}
-                <div 
-                    className={`sidebar-extra-item ${activeNav === 'trash' ? 'active' : ''}`} 
+                <div
+                    className={`sidebar-extra-item ${activeNav === 'trash' ? 'active' : ''}`}
                     onClick={() => onNavClick('trash')}
                 >
                     최근 삭제된 항목
@@ -151,7 +154,13 @@ export default function Sidebar({
                         <div className="fill" style={{ width: `${storagePercent}%` }} />
                     </div>
                 </div>
-                <button className="logout-btn-outline" onClick={onLogoutClick}>로그아웃</button>
+
+                {/* ✅ 로그인 상태에 따라 버튼 전환 */}
+                {isLoggedIn ? (
+                    <button className="logout-btn-outline" onClick={onLogoutClick}>로그아웃</button>
+                ) : (
+                    <button className="logout-btn-outline" onClick={onLoginClick}>로그인</button>
+                )}
             </div>
         </aside>
     );

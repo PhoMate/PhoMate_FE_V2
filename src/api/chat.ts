@@ -349,6 +349,11 @@ export async function streamTextChat(
 export async function sendEditChat(
     params: { chatSessionId: number; editSessionId: number; userText: string }
 ): Promise<SendEditChatResponse> {
+    // chatSessionId가 유효하지 않으면 즉시 에러
+    if (!params.chatSessionId || params.chatSessionId <= 0) {
+        throw new Error('유효한 채팅 세션이 없습니다. 잠시 후 다시 시도해주세요.');
+    }
+
     const query = new URLSearchParams({
         chatSessionId: String(params.chatSessionId),
         editSessionId: String(params.editSessionId),

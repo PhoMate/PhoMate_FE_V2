@@ -1,3 +1,15 @@
+/* 1. 부모 컨테이너: 여기가 핵심입니다! */
+.photo-grid-container {
+    display: grid;
+    /* 화면 너비에 따라 자동으로 카드를 배치 (최소 200px ~ 최대 1fr) */
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+    padding: 20px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* 2. 개별 카드 스타일 */
 .photo-card {
     border-radius: 20px;
     overflow: hidden;
@@ -7,6 +19,11 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     display: flex;
     flex-direction: column;
+    position: relative;
+}
+
+.photo-card.selected { 
+    border: 3px solid #003366; 
 }
 
 .photo-card:hover {
@@ -25,12 +42,17 @@
 .photo-card-image img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: cover; /* 이미지가 찌그러지지 않게 꽉 채움 */
     transition: transform 0.5s ease;
+    display: block;
 }
 
 .photo-card:hover .photo-card-image img {
     transform: scale(1.05);
+}
+
+.photo-card-info {
+    padding: 12px 15px;
 }
 
 .photo-card-title {
@@ -43,13 +65,13 @@
     text-overflow: ellipsis;
 }
 
-.photo-card.selected { border: 3px solid #003366; }
-
+/* 3. 선택 모드 레이어 */
 .select-overlay {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(0, 0, 0, 0.1);
     display: flex; justify-content: flex-end; padding: 10px;
+    box-sizing: border-box;
 }
 
 .select-overlay.active { background: rgba(0, 51, 102, 0.2); }

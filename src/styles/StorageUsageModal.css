@@ -143,3 +143,29 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* StorageUsageModal.css에 추가 */
+.storage-progress-wrapper {
+    padding: 0 24px 16px;
+}
+
+.storage-progress-bar {
+    height: 8px;
+    background: #E2E8F0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.storage-progress-fill {
+    height: 100%;
+    background: #003366;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    min-width: 2px;
+}
+
+.storage-progress-label {
+    font-size: 12px;
+    color: #64748B;
+}

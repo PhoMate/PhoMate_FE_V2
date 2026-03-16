@@ -71,6 +71,7 @@ export type PhotoFeedItem = {
     thumbnailUrl: string;
     previewUrl: string;
     shotAt: string;
+    sizeBytes?: number;
 };
 
 export type PhotoDetail = {
@@ -104,11 +105,12 @@ export async function getAlbumLatest(params?: {
         .map((item) => asRecord(item))
         .filter((item): item is JsonRecord => !!item)
         .map((item) => ({
-            photoId: asNumber(item.photoId),
-            thumbnailUrl: asText(item.thumbnailUrl),
+          photoId: asNumber(item.photoId),
+           thumbnailUrl: asText(item.thumbnailUrl),
             previewUrl: asText(item.previewUrl),
-            shotAt: asText(item.shotAt)
-        }));
+           shotAt: asText(item.shotAt),
+          sizeBytes: asNumber(item.sizeBytes) || asNumber(item.fileSizeBytes) || asNumber(item.size) || 0 // 추가
+         }));
 }
 
 export async function getTrashLatest(params?: {

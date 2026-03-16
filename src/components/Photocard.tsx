@@ -17,11 +17,6 @@ export default function PhotoCard({ photo, onClick, isSelectMode, isSelected, on
                     </div>
                 )}
             </div>
-            {hasTitle ? (
-                <div className="photo-card-info">
-                    <h3 className="photo-card-title">{photo.title}</h3>
-                </div>
-            ) : null}
         </div>
     );
 }
