@@ -7,6 +7,15 @@ function toApiUrl(path: string): string {
     return new URL(path, API_BASE_URL).toString();
 }
 
+function asNumber(value: unknown): number {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim()) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return 0;
+}
+
 export type EditVersionResponse = {
     editSessionId: number;
     editVersionId: number;
@@ -16,13 +25,38 @@ export type EditVersionResponse = {
     sourceType: 'CHAT' | 'DIRECT' | 'INITIAL';
 };
 
-/** 1. 편집 세션 시작 (v0 생성) — /api/edits/{editSessionId}/start */
-export async function startEditSession(editSessionId: number): Promise<{ editSessionId: number }> {
-    const response = await authFetch(toApiUrl(`/api/edits/${editSessionId}/start`), {
-        method: 'POST'
-    });
-    if (!response.ok) throw new Error('편집 세션을 시작할 수 없습니다.');
-    return response.json();
+/** 1. 편집 세션 시작 (v0 생성) */
+export async function startEditSession(photoId: number): Promise<{ editSessionId: number }> {
+    const candidates = [
+        `/api/edits/start?photoId=${photoId}`,
+        `/api/edits/${photoId}/start`,
+        `/api/edits/start?postId=${photoId}`
+    ];
+
+    let lastStatus = '';
+
+    for (const path of candidates) {
+        const response = await authFetch(toApiUrl(path), { method: 'POST' });
+
+        if (!response.ok) {
+            lastStatus = `${response.status} ${response.statusText}`;
+            // 배포/스펙 불일치 환경에서는 400/404가 섞일 수 있어 다음 후보를 시도한다.
+            if (response.status === 400 || response.status === 404) continue;
+            throw new Error(`편집 세션을 시작할 수 없습니다. (${lastStatus})`);
+        }
+
+        const raw = (await response.json()) as unknown;
+        const editSessionId =
+            asNumber(raw) ||
+            asNumber((raw as { editSessionId?: unknown })?.editSessionId) ||
+            asNumber((raw as { data?: { editSessionId?: unknown } })?.data?.editSessionId);
+
+        if (editSessionId > 0) {
+            return { editSessionId };
+        }
+    }
+
+    throw new Error(`편집 세션을 시작할 수 없습니다. (${lastStatus || '사용 가능한 엔드포인트 없음'})`);
 }
 
 /** 2. 현재 버전 정보 조회 */
@@ -72,7 +106,7 @@ export async function finalizeEdit(editSessionId: number): Promise<string> {
         method: 'POST'
     });
     if (!response.ok) throw new Error('최종 저장 실패');
-    return response.text(); // finalUrl 반환
+    return response.text();
 }
 
 /** 7. Direct Edit (ToastUI 결과물 업로드) */

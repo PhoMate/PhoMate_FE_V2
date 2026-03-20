@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, Edit3, Undo, Redo, Save } from 'lucide-react';
 import {
     type ChatFolderPreviewPhoto,
+    type SearchResultItem,
     confirmAutoFolder,
     previewAutoFolder,
     sendEditChat,
@@ -16,6 +17,7 @@ import {
     redoEdit,
     finalizeEdit
 } from '../api/edit';
+import { getPhotoDetail } from '../api/photo';
 import '../styles/Chatbot.css';
 
 type ChatTab = 'search' | 'edit';
@@ -114,7 +116,17 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
         setErrorMessage('');
         editSessionPhotoIdRef.current = selectedPhotoId;
 
-        startEditSession(selectedPhotoId)
+        const resolveTargetId = async () => {
+            try {
+                const detail = await getPhotoDetail(selectedPhotoId);
+                return detail.postId ?? selectedPhotoId;
+            } catch {
+                return selectedPhotoId;
+            }
+        };
+
+        resolveTargetId()
+            .then((targetId) => startEditSession(targetId))
             .then((res) => {
                 const confirmedId = res.editSessionId;
                 setEditSessionIdSync(confirmedId);
@@ -220,7 +232,17 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
         setIsEditSessionLoading(true);
         editSessionPhotoIdRef.current = photoId;
 
-        startEditSession(photoId)
+        const resolveTargetId = async () => {
+            try {
+                const detail = await getPhotoDetail(photoId);
+                return detail.postId ?? photoId;
+            } catch {
+                return photoId;
+            }
+        };
+
+        resolveTargetId()
+            .then((targetId) => startEditSession(targetId))
             .then((res) => {
                 const confirmedId = res.editSessionId;
                 setEditSessionIdSync(confirmedId);
@@ -283,14 +305,168 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                     updateSearchMessage(assistantMessageId, streamedText);
                 };
 
+                const buildSearchCandidates = (query: string): string[] => {
+                    const normalized = query.replace(/\s+/g, ' ').trim();
+                    const simplified = normalized
+                        .replace(/검색해줘|검색해 줘|검색|찾아줘|찾아 줘|찾아|보여줘|보여 줘|추천해줘|추천해 줘|추천|해줘|해 줘/gi, ' ')
+                        .replace(/[!?.,]/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    const composed = simplified
+                        .replace(/\b와\b|\b과\b|\b및\b|\b랑\b|\b하고\b/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+
+                    return Array.from(new Set([normalized, composed, simplified].filter((v) => v.length > 1)));
+                };
+
+                const mapSearchItemsToPhotos = (items: SearchResultItem[]): ChatFolderPreviewPhoto[] => {
+                    const toNumber = (value: unknown): number => {
+                        if (typeof value === 'number' && Number.isFinite(value)) return value;
+                        if (typeof value === 'string' && value.trim()) {
+                            const parsed = Number(value);
+                            if (Number.isFinite(parsed)) return parsed;
+                        }
+                        return 0;
+                    };
+
+                    const toText = (value: unknown): string => {
+                        if (typeof value === 'string') return value;
+                        if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+                        return '';
+                    };
+
+                    const normalize = (value: string): string => value.toLocaleLowerCase().trim();
+                    const compact = (value: string): string => normalize(value).replace(/\s+/g, '');
+
+                    const expandToken = (token: string): string[] => {
+                        const base = compact(token);
+                        if (!base) return [];
+
+                        const expanded = new Set<string>([base]);
+
+                        // 한국어 합성어(예: 체크셔츠) 대응을 위해 2글자 부분 토큰을 추가한다.
+                        if (base.length >= 4) {
+                            for (let i = 0; i <= base.length - 2; i += 1) {
+                                expanded.add(base.slice(i, i + 2));
+                            }
+                        }
+
+                        return Array.from(expanded);
+                    };
+
+                    const queryTokens = normalize(trimmed)
+                        .split(/\s+/)
+                        .map((token) => token.trim())
+                        .filter((token) => token.length > 1)
+                        .filter((token) => !['사진', '검색', '찾아', '찾기', '해줘', '보여줘'].includes(token));
+                    const expandedQueryTokens = Array.from(new Set(queryTokens.flatMap((token) => expandToken(token))));
+
+                    const scoreByQuery = (item: SearchResultItem): number => {
+                        const itemRecord = item as Record<string, unknown>;
+                        const serverScoreRaw =
+                            itemRecord.score ??
+                            itemRecord.similarity ??
+                            itemRecord.similarityScore ??
+                            itemRecord.relevanceScore;
+                        const serverScore = toNumber(serverScoreRaw);
+
+                        const bag = [
+                            item.title,
+                            itemRecord.description,
+                            itemRecord.caption,
+                            itemRecord.prompt,
+                            itemRecord.style,
+                            itemRecord.tags,
+                            itemRecord.category
+                        ]
+                            .map((v) => Array.isArray(v) ? v.join(' ') : toText(v))
+                            .join(' ')
+                            .toLocaleLowerCase();
+                        const compactBag = compact(bag);
+
+                        const compactFullQuery = compact(trimmed);
+
+                        if (!bag) {
+                            return compactFullQuery.length > 1 && compact(toText(itemRecord.previewUrl) || toText(itemRecord.thumbnailUrl) || toText(itemRecord.imageUrl)).includes(compactFullQuery)
+                                ? 50
+                                : 0;
+                        }
+
+                        // 서버 score는 보조 지표로만 반영하고, 키워드 일치를 우선한다.
+                        let score = serverScore > 0 ? serverScore * 20 : 0;
+                        const fullQuery = normalize(trimmed);
+                        if (fullQuery.length > 1 && bag.includes(fullQuery)) score += 10;
+                        if (compact(fullQuery).length > 1 && compactBag.includes(compact(fullQuery))) score += 14;
+
+                        for (const token of queryTokens) {
+                            if (bag.includes(token)) score += 4;
+                        }
+
+                        for (const token of expandedQueryTokens) {
+                            if (compactBag.includes(token)) score += token.length >= 4 ? 4 : 1;
+                        }
+
+                        return score;
+                    };
+
+                    return items
+                        .map((item, index) => {
+                            const score = scoreByQuery(item);
+                            return {
+                                index,
+                                score,
+                                matched: score >= 10,
+                                photo: {
+                                    // 서버 스키마가 배포마다 달라도 카드 렌더링 가능한 값을 우선 추출한다.
+                                    photoId: toNumber(item.photoId) || toNumber(item.postId),
+                                    previewUrl: toText(item.previewUrl) || toText(item.thumbnailUrl) || toText(item.imageUrl),
+                                    shotAt: toText(item.shotAt)
+                                }
+                            };
+                        })
+                        .sort((a, b) => {
+                            if (a.matched !== b.matched) return a.matched ? -1 : 1;
+                            if (b.score !== a.score) return b.score - a.score;
+                            return a.index - b.index;
+                        })
+                        .map((entry) => entry.photo)
+                        .filter((item) => item.photoId > 0 && !!item.previewUrl);
+                };
+
                 if (isSearchIntent(trimmed)) {
-                    onSearchResults?.({ query: trimmed, photos: [] });
+                    const searchCandidates = buildSearchCandidates(trimmed);
+                    let hasResultItems = false;
                     try {
-                        const preview = await previewAutoFolder({ chatSessionId: currentSessionId, userText: trimmed, topK: 24 });
-                        onSearchResults?.({ query: trimmed, photos: preview.photos });
-                    } catch { }
-                    try {
-                        await streamSearchChat({ sessionId: currentSessionId, message: trimmed, onDelta: handleDelta });
+                        await streamSearchChat({
+                            sessionId: currentSessionId,
+                            message: searchCandidates[0] ?? trimmed,
+                            onDelta: handleDelta,
+                            onResults: (items) => {
+                                const mapped = mapSearchItemsToPhotos(items);
+                                hasResultItems = mapped.length > 0;
+                                onSearchResults?.({ query: trimmed, photos: mapped });
+                            }
+                        });
+
+                        if (!hasResultItems) {
+                            for (const candidate of searchCandidates) {
+                                try {
+                                    const preview = await previewAutoFolder({
+                                        chatSessionId: currentSessionId,
+                                        userText: candidate,
+                                        topK: 24
+                                    });
+                                    if (preview.photos.length > 0) {
+                                        hasResultItems = true;
+                                        onSearchResults?.({ query: trimmed, photos: preview.photos });
+                                        break;
+                                    }
+                                } catch {
+                                    // fallback 후보를 순차 시도한다.
+                                }
+                            }
+                        }
                     } catch (error: unknown) {
                         const message = error instanceof Error ? error.message : '';
                         if (streamedText.trim().length > 0) return;

@@ -76,6 +76,7 @@ export type PhotoFeedItem = {
 
 export type PhotoDetail = {
     photoId: number;
+    postId?: number;
     originalUrl: string;
     shotAt: string;
 };
@@ -157,6 +158,7 @@ export async function getPhotoDetail(photoId: number): Promise<PhotoDetail> {
 
     return {
         photoId: asNumber(data.photoId),
+        postId: asNumber(data.postId) || undefined,
         originalUrl: asText(data.originalUrl),
         shotAt: asText(data.shotAt)
     };

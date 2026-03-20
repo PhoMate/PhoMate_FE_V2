@@ -1,12 +1,42 @@
 type JsonRecord = Record<string, unknown>;
 import { authFetch, getAccessToken } from './auth';
 export type SearchResultItem = {
-    postId: number;
-    title: string;
-    thumbnailUrl: string;
-    likeCount: number;
-    likedByMe: boolean;
+    postId?: number;
+    photoId?: number;
+    title?: string;
+    thumbnailUrl?: string;
+    previewUrl?: string;
+    imageUrl?: string;
+    likeCount?: number;
+    likedByMe?: boolean;
+    shotAt?: string;
+    score?: number;
 };
+
+function extractItemsFromUnknown(value: unknown): SearchResultItem[] {
+    if (Array.isArray(value)) return value as SearchResultItem[];
+    if (!value || typeof value !== 'object') return [];
+
+    const record = value as JsonRecord;
+    const dataRecord = (record.data && typeof record.data === 'object')
+        ? (record.data as JsonRecord)
+        : null;
+
+    const candidates = [
+        record.items,
+        record.results,
+        dataRecord?.items,
+        dataRecord?.results,
+        dataRecord?.photos,
+        record.photos
+    ];
+
+    for (const candidate of candidates) {
+        if (Array.isArray(candidate)) return candidate as SearchResultItem[];
+    }
+
+    return [];
+}
 
 type SendEditChatResponse = {
     chatSessionId: number;
@@ -143,8 +173,7 @@ function parseResultsItems(data: string): SearchResultItem[] {
     if (!trimmed) return [];
 
     try {
-        const parsed = JSON.parse(trimmed) as { items?: SearchResultItem[] };
-        return Array.isArray(parsed.items) ? parsed.items : [];
+        return extractItemsFromUnknown(JSON.parse(trimmed));
     } catch {
         return [];
     }
@@ -203,86 +232,48 @@ export async function streamSearchChat(
         onResults?: (items: SearchResultItem[]) => void;
     }
 ): Promise<void> {
-    const response = await authFetch(toApiUrl('/api/chat/search/stream'), {
+    const endpoint = toApiUrl('/api/chat/search/stream');
+    const body = JSON.stringify({
+        chatSessionId: params.sessionId,
+        userText: params.message
+    });
+
+    const response = await authFetch(endpoint, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             Accept: 'text/event-stream'
         },
-        body: JSON.stringify({
-            chatSessionId: params.sessionId,
-            userText: params.message
-        })
+        body,
+        cache: 'no-store'
     });
 
     if (!response.ok) {
         throw await buildHttpError(response, '검색 스트리밍 요청에 실패했습니다.');
     }
 
-    if (!response.body) {
-        const text = await response.text();
-        if (text) params.onDelta(text);
-        return;
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let pending = '';
-    let emittedAnyDelta = false;
-
-    const consumeBlock = (block: string) => {
-        if (!block.trim()) return;
-
-        const { eventType, data } = parseEventBlock(block);
-
-        if (eventType === 'results') {
-            const items = parseResultsItems(data);
-            if (items.length && params.onResults) {
-                params.onResults(items);
-            }
-            return;
-        }
-
-        if (eventType === 'delta') {
-            emittedAnyDelta = true;
-            params.onDelta(data);
-            return;
-        }
-
-        if (isDoneEvent(eventType, data)) {
-            return;
-        }
-
-        const parsed = parseStreamLine(data);
-        if (parsed.done) return;
-        if (parsed.text) {
-            emittedAnyDelta = true;
-            params.onDelta(parsed.text);
-        }
-    };
-
     try {
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            pending += decoder.decode(value, { stream: true });
-            const blocks = pending.split(/\r?\n\r?\n/);
-            pending = blocks.pop() ?? '';
-
-            for (const block of blocks) {
-                consumeBlock(block);
-            }
-        }
+        await consumeSearchStreamResponse(response, params);
     } catch (error) {
-        if (!emittedAnyDelta) {
+        if (!isHttp2ProtocolError(error)) {
             throw error;
         }
-    }
 
-    pending += decoder.decode();
-    if (pending.trim()) {
-        consumeBlock(pending);
+        const retryResponse = await authFetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: '*/*'
+            },
+            body,
+            cache: 'no-store'
+        });
+
+        if (!retryResponse.ok) {
+            throw await buildHttpError(retryResponse, '검색 스트리밍 재시도에 실패했습니다.');
+        }
+
+        await consumeSearchStreamResponse(retryResponse, params);
     }
 }
 
@@ -461,6 +452,151 @@ function isHttp2ProtocolError(error: unknown): boolean {
         message.includes('TypeError: Failed to fetch') ||
         message.includes('NetworkError')
     );
+}
+
+async function consumeSearchStreamResponse(
+    response: Response,
+    params: {
+        sessionId: number;
+        message: string;
+        onDelta: (delta: string) => void;
+        onResults?: (items: SearchResultItem[]) => void;
+    }
+): Promise<void> {
+    if (!response.body) {
+        const text = await response.text();
+        if (text) params.onDelta(text);
+        return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = '';
+    let emittedAnyDelta = false;
+
+    const consumeBlock = (block: string) => {
+        if (!block.trim()) return;
+
+        const { eventType, data } = parseEventBlock(block);
+        const normalizedEventType = eventType.toLocaleLowerCase();
+        const tryEmitResultsFromJsonText = (jsonText: string): boolean => {
+            const trimmed = jsonText.trim();
+            if (!trimmed || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) return false;
+
+            try {
+                const parsed = JSON.parse(trimmed) as JsonRecord;
+                const envelopeEvent = asText(parsed.event || parsed.type).toLowerCase();
+                const isResultLike =
+                    envelopeEvent === 'results' ||
+                    envelopeEvent === 'result' ||
+                    envelopeEvent === 'search_results' ||
+                    envelopeEvent === 'search_result';
+
+                if (isResultLike || !normalizedEventType) {
+                    const items = extractItemsFromUnknown(parsed);
+                    if (items.length && params.onResults) {
+                        emittedAnyDelta = true;
+                        params.onResults(items);
+                        return true;
+                    }
+                }
+
+                const isDeltaLike =
+                    envelopeEvent === 'delta' ||
+                    envelopeEvent === 'message' ||
+                    envelopeEvent === 'text';
+                if (isDeltaLike) {
+                    const text =
+                        asText(parsed.delta) ||
+                        asText(parsed.content) ||
+                        asText(parsed.message) ||
+                        asText((parsed.data as JsonRecord | undefined)?.delta) ||
+                        asText((parsed.data as JsonRecord | undefined)?.content) ||
+                        asText((parsed.data as JsonRecord | undefined)?.message);
+                    if (text) {
+                        emittedAnyDelta = true;
+                        params.onDelta(text);
+                        return true;
+                    }
+                }
+
+                // event명이 달라도 JSON 본문 안에 results 배열이 있으면 결과로 처리한다.
+                const items = extractItemsFromUnknown(parsed);
+                if (items.length && params.onResults) {
+                    emittedAnyDelta = true;
+                    params.onResults(items);
+                    return true;
+                }
+            } catch {
+                return false;
+            }
+
+            return false;
+        };
+
+        if (tryEmitResultsFromJsonText(data)) {
+            return;
+        }
+
+        if (
+            normalizedEventType === 'results' ||
+            normalizedEventType === 'result' ||
+            normalizedEventType === 'search_results' ||
+            normalizedEventType === 'search_result'
+        ) {
+            const items = parseResultsItems(data);
+            if (items.length && params.onResults) {
+                emittedAnyDelta = true;
+                params.onResults(items);
+            }
+            return;
+        }
+
+        if (
+            normalizedEventType === 'delta' ||
+            normalizedEventType === 'message' ||
+            normalizedEventType === 'text'
+        ) {
+            emittedAnyDelta = true;
+            params.onDelta(data);
+            return;
+        }
+
+        if (isDoneEvent(eventType, data)) {
+            return;
+        }
+
+        const parsed = parseStreamLine(data);
+        if (parsed.done) return;
+        if (parsed.text) {
+            emittedAnyDelta = true;
+            params.onDelta(parsed.text);
+        }
+    };
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            pending += decoder.decode(value, { stream: true });
+            const blocks = pending.split(/\r?\n\r?\n/);
+            pending = blocks.pop() ?? '';
+
+            for (const block of blocks) {
+                consumeBlock(block);
+            }
+        }
+    } catch (error) {
+        if (!emittedAnyDelta) {
+            throw error;
+        }
+    }
+
+    pending += decoder.decode();
+    if (pending.trim()) {
+        consumeBlock(pending);
+    }
 }
 
 async function consumeTextStreamResponse(
