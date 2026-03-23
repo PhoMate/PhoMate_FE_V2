@@ -11,6 +11,7 @@ export type SearchResultItem = {
     likedByMe?: boolean;
     shotAt?: string;
     score?: number;
+    similarity?: number;
 };
 
 function extractItemsFromUnknown(value: unknown): SearchResultItem[] {
@@ -399,28 +400,65 @@ export async function previewAutoFolder(
 
     const payload = (await response.json()) as JsonRecord;
     const data = (payload.data as JsonRecord | undefined) ?? payload;
-    const photosRaw = Array.isArray(data.photos) ? (data.photos as JsonRecord[]) : [];
+
+    const photosCandidate =
+        (Array.isArray(data.photos) ? data.photos : null) ??
+        (Array.isArray(data.items) ? data.items : null) ??
+        (Array.isArray(data.results) ? data.results : null);
+
+    const photosRaw = Array.isArray(photosCandidate) ? (photosCandidate as JsonRecord[]) : [];
+    const photoIdsRaw = Array.isArray(data.photoIds)
+        ? (data.photoIds as unknown[]).map((value) => asNumber(value)).filter((id) => id > 0)
+        : [];
+
+    const mappedPhotos = photosRaw
+        .map((item) => ({
+            photoId:
+                asNumber(item.photoId) ||
+                asNumber(item.photo_id) ||
+                asNumber(item.id) ||
+                asNumber(item.postId),
+            previewUrl:
+                asText(item.previewUrl) ||
+                asText(item.preview_url) ||
+                asText(item.thumbnailUrl) ||
+                asText(item.thumbnail_url) ||
+                asText(item.imageUrl) ||
+                asText(item.image_url) ||
+                asText(item.url),
+            shotAt: asText(item.shotAt) || asText(item.shot_at)
+        }))
+        .filter((photo) => photo.photoId > 0);
+
+    const mergedPhotoIds = Array.from(new Set([
+        ...mappedPhotos.map((photo) => photo.photoId),
+        ...photoIdsRaw
+    ]));
+
+    const photos = mergedPhotoIds.map((id) => {
+        const existing = mappedPhotos.find((photo) => photo.photoId === id);
+        if (existing) return existing;
+        return { photoId: id, previewUrl: '', shotAt: '' };
+    });
 
     return {
-        suggestedFolderName: asText(data.suggestedFolderName),
-        photos: photosRaw.map((item) => ({
-            photoId: asNumber(item.photoId),
-            previewUrl: asText(item.previewUrl),
-            shotAt: asText(item.shotAt)
-        }))
+        suggestedFolderName: asText(data.suggestedFolderName) || asText(data.folderName),
+        photos
     };
 }
 
 export async function confirmAutoFolder(
-    params: { accepted: boolean; folderName: string; photoIds: number[] }
+    params: { chatSessionId: number; accepted: boolean; folderName: string; photoIds: number[]; folderType?: 'PERSONAL' | 'SHARED' }
 ): Promise<ChatFolderConfirmResponse> {
     const response = await authFetch(toApiUrl('/api/chat/folders/confirm'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+            chatSessionId: params.chatSessionId,
             accepted: params.accepted,
             folderName: params.folderName,
-            photoIds: params.photoIds
+            photoIds: params.photoIds,
+            ...(params.folderType ? { folderType: params.folderType } : {})
         })
     });
 

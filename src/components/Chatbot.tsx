@@ -22,6 +22,7 @@ import '../styles/Chatbot.css';
 
 type ChatTab = 'search' | 'edit';
 type ChatRole = 'assistant' | 'user';
+type SearchMode = 'auto' | 'search' | 'organize';
 
 type ChatMessage = {
     id: string;
@@ -33,6 +34,9 @@ type FolderPreviewState = {
     folderName: string;
     photoIds: number[];
     status: 'pending' | 'accepted' | 'rejected';
+    folderType: 'PERSONAL' | 'SHARED';
+    photos: ChatFolderPreviewPhoto[];
+    selectedPhotoIds: number[];
 };
 
 type ChatbotProps = {
@@ -42,9 +46,10 @@ type ChatbotProps = {
     isLoggedIn: boolean;
     selectedPhotoId?: number | null;
     onSearchResults?: (payload: { query: string; photos: ChatFolderPreviewPhoto[] }) => void;
+    onFolderCreated?: (folderName: string, folderType: 'PERSONAL' | 'SHARED', photoIds: number[]) => void;
 };
 
-export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedPhotoId, onSearchResults }: ChatbotProps) {
+export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedPhotoId, onSearchResults, onFolderCreated }: ChatbotProps) {
     const isGuestChatMode = import.meta.env.VITE_CHAT_GUEST_MODE === 'true';
     const [activeTab, setActiveTab] = useState<ChatTab>('search');
 
@@ -69,6 +74,8 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
     const [isSending, setIsSending] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [folderPreview, setFolderPreview] = useState<FolderPreviewState | null>(null);
+    const [folderPreviewType, setFolderPreviewType] = useState<'PERSONAL' | 'SHARED'>('PERSONAL');
+    const [searchMode, setSearchMode] = useState<SearchMode>('auto');
     const [isEditDragOver, setIsEditDragOver] = useState(false);
     const bodyRef = useRef<HTMLDivElement | null>(null);
     const localEditPreviewUrlRef = useRef<string | null>(null);
@@ -194,14 +201,19 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
         return id;
     };
 
-    const isSearchIntent = (text: string) => {
+    const shouldAttemptSearch = (text: string) => {
         const n = text.trim().toLocaleLowerCase();
-        return ['검색', '찾아', '사진', '이미지', 'show me', 'find'].some((k) => n.includes(k));
+        if (!n) return false;
+        // 검색 탭에서는 키워드 강제 없이 자연어를 우선 검색 요청으로 본다.
+        return n.length >= 2;
     };
 
     const isFolderOrganizeIntent = (text: string) => {
         const n = text.trim().toLocaleLowerCase();
-        return ['폴더', '분류', '정리', 'folder', 'organize', 'group'].some((k) => n.includes(k));
+        return [
+            '폴더', '분류', '정리', '묶', '모아', '앨범', '그룹', '카테고리',
+            'folder', 'organize', 'group', 'categorize', 'cluster', 'create folder'
+        ].some((k) => n.includes(k));
     };
 
     const isDemoStreamInput = (text: string) => {
@@ -282,12 +294,24 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
 
                 const currentSessionId = await ensureSessionId();
 
-                if (isFolderOrganizeIntent(trimmed)) {
+                const shouldOrganize =
+                    searchMode === 'organize' ||
+                    (searchMode === 'auto' && isFolderOrganizeIntent(trimmed));
+
+                if (shouldOrganize) {
                     const preview = await previewAutoFolder({ chatSessionId: currentSessionId, userText: trimmed, topK: 20 });
                     const photoIds = preview.photos.map((p) => p.photoId).filter((id) => id > 0);
-                    setFolderPreview({ folderName: preview.suggestedFolderName || 'AI 추천 폴더', photoIds, status: 'pending' });
+                    setFolderPreview({
+                        folderName: preview.suggestedFolderName || 'AI 추천 폴더',
+                        photoIds,
+                        status: 'pending',
+                        folderType: 'PERSONAL',
+                        photos: preview.photos,
+                        selectedPhotoIds: photoIds
+                    });
+                    setFolderPreviewType('PERSONAL');
                     appendSearchMessage('assistant',
-                        `추천 폴더명: ${preview.suggestedFolderName || 'AI 추천 폴더'}\n분류 후보 사진: ${preview.photos.length}장\n아래 버튼으로 생성 여부를 선택해주세요.`
+                        `추천 폴더명: ${preview.suggestedFolderName || 'AI 추천 폴더'}\n분류 후보 사진: ${preview.photos.length}장\n아래에서 포함할 사진을 선택하고 생성해주세요.`
                     );
                     return;
                 }
@@ -434,7 +458,7 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                         .filter((item) => item.photoId > 0 && !!item.previewUrl);
                 };
 
-                if (isSearchIntent(trimmed)) {
+                if (searchMode === 'search' || searchMode === 'auto') {
                     const searchCandidates = buildSearchCandidates(trimmed);
                     let hasResultItems = false;
                     try {
@@ -466,6 +490,15 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                                     // fallback 후보를 순차 시도한다.
                                 }
                             }
+                        }
+
+                        if (!hasResultItems && streamedText.trim().length === 0) {
+                            await streamTextChat({
+                                sessionId: currentSessionId,
+                                message: trimmed,
+                                onDelta: handleDelta,
+                                onError: (code) => { setErrorMessage(`스트리밍 오류: ${code}`); }
+                            });
                         }
                     } catch (error: unknown) {
                         const message = error instanceof Error ? error.message : '';
@@ -575,19 +608,36 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
         }
     };
 
-    const handleFolderConfirm = async (accepted: boolean) => {
+    const handlePhotoToggle = (photoId: number) => {
+        if (!folderPreview) return;
+        setFolderPreview((prev) => {
+            if (!prev) return prev;
+            const newSelected = prev.selectedPhotoIds.includes(photoId)
+                ? prev.selectedPhotoIds.filter((id) => id !== photoId)
+                : [...prev.selectedPhotoIds, photoId];
+            return { ...prev, selectedPhotoIds: newSelected };
+        });
+    };
+
+    const handleFolderConfirm = async (accepted: boolean, folderType: 'PERSONAL' | 'SHARED' = folderPreviewType) => {
         if (!folderPreview || folderPreview.status !== 'pending') return;
         setIsSending(true);
         setErrorMessage('');
         try {
+            const currentSessionId = sessionIdRef.current || await ensureSessionId();
             const response = await confirmAutoFolder({
+                chatSessionId: currentSessionId,
                 accepted,
                 folderName: folderPreview.folderName,
-                photoIds: folderPreview.photoIds
+                photoIds: folderPreview.selectedPhotoIds,
+                folderType
             });
             setFolderPreview((prev) => prev ? { ...prev, status: accepted ? 'accepted' : 'rejected' } : prev);
+            if (accepted && folderPreview) {
+                onFolderCreated?.(folderPreview.folderName, folderType, [...folderPreview.selectedPhotoIds]);
+            }
             appendSearchMessage('assistant', accepted
-                ? response.folderId ? `폴더가 생성되었습니다. (folderId: ${response.folderId})` : '폴더 생성이 완료되었습니다.'
+                ? '폴더가 생성되었습니다.'
                 : '폴더 생성을 취소했습니다.'
             );
         } catch (error: unknown) {
@@ -733,21 +783,62 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                                 </div>
                             ))}
                             {folderPreview && folderPreview.status === 'pending' ? (
-                                <div className="folder-preview-actions">
-                                    <button
-                                        className="folder-preview-btn accept"
-                                        onClick={() => void handleFolderConfirm(true)}
-                                        disabled={isSending}
-                                    >
-                                        수락
-                                    </button>
-                                    <button
-                                        className="folder-preview-btn reject"
-                                        onClick={() => void handleFolderConfirm(false)}
-                                        disabled={isSending}
-                                    >
-                                        거절
-                                    </button>
+                                <div>
+                                    <div className="folder-preview-grid">
+                                        {folderPreview.photos.map((photo) => (
+                                            <div
+                                                key={photo.photoId}
+                                                className={`folder-preview-photo ${folderPreview.selectedPhotoIds.includes(photo.photoId) ? 'selected' : ''}`}
+                                                onClick={() => handlePhotoToggle(photo.photoId)}
+                                            >
+                                                {photo.previewUrl ? (
+                                                    <img src={photo.previewUrl} alt="preview" />
+                                                ) : (
+                                                    <div className="folder-preview-photo-empty">사진 {photo.photoId}</div>
+                                                )}
+                                                {folderPreview.selectedPhotoIds.includes(photo.photoId) && (
+                                                    <div className="photo-selected-badge">✓</div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="folder-preview-count">
+                                        선택된 사진: {folderPreview.selectedPhotoIds.length}장
+                                    </div>
+                                    <div className="folder-preview-actions">
+                                    <div className="folder-type-selector">
+                                        <button
+                                            className={`folder-type-btn ${folderPreviewType === 'PERSONAL' ? 'active' : ''}`}
+                                            onClick={() => setFolderPreviewType('PERSONAL')}
+                                            disabled={isSending}
+                                        >
+                                            📁 폴더
+                                        </button>
+                                        <button
+                                            className={`folder-type-btn ${folderPreviewType === 'SHARED' ? 'active' : ''}`}
+                                            onClick={() => setFolderPreviewType('SHARED')}
+                                            disabled={isSending}
+                                        >
+                                            🔗 공유폴더
+                                        </button>
+                                    </div>
+                                    <div className="folder-action-buttons">
+                                        <button
+                                            className="folder-preview-btn accept"
+                                            onClick={() => void handleFolderConfirm(true)}
+                                            disabled={isSending}
+                                        >
+                                            생성
+                                        </button>
+                                        <button
+                                            className="folder-preview-btn reject"
+                                            onClick={() => void handleFolderConfirm(false)}
+                                            disabled={isSending}
+                                        >
+                                            취소
+                                        </button>
+                                    </div>
+                                </div>
                                 </div>
                             ) : null}
                             {errorMessage ? <div className="chat-error-text">{errorMessage}</div> : null}
@@ -822,6 +913,31 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
 
                 {/* 푸터 */}
                 <div className="chatbot-footer">
+                    {activeTab === 'search' ? (
+                        <div className="search-mode-row" role="group" aria-label="검색 모드 선택">
+                            <button
+                                type="button"
+                                className={`search-mode-chip ${searchMode === 'auto' ? 'active' : ''}`}
+                                onClick={() => setSearchMode('auto')}
+                            >
+                                자동
+                            </button>
+                            <button
+                                type="button"
+                                className={`search-mode-chip ${searchMode === 'search' ? 'active' : ''}`}
+                                onClick={() => setSearchMode('search')}
+                            >
+                                검색
+                            </button>
+                            <button
+                                type="button"
+                                className={`search-mode-chip ${searchMode === 'organize' ? 'active' : ''}`}
+                                onClick={() => setSearchMode('organize')}
+                            >
+                                폴더 생성
+                            </button>
+                        </div>
+                    ) : null}
                     <div className="input-field-pill">
                         <input
                             type="text"
@@ -834,7 +950,9 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                                             ? 'AI에게 편집 명령을 입력하세요...'
                                             : isGuestChatMode
                                                 ? '게스트 모드: 메시지를 입력하세요...'
-                                                : '메시지를 입력하세요...'
+                                                : searchMode === 'organize'
+                                                    ? '예: 여행 사진을 폴더로 묶어줘'
+                                                    : '메시지를 입력하세요...'
                             }
                             className="chat-input"
                             value={input}

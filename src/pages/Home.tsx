@@ -1119,6 +1119,27 @@ useEffect(() => {
                     onOpen={() => setIsChatOpen(true)}
                     isLoggedIn={isLoggedIn}
                     onSearchResults={handleChatSearchResults}
+                    onFolderCreated={(folderName, folderType, photoIds) => {
+                        const photoIdStrings = photoIds.map((id) => String(id)).filter((id) => id.length > 0);
+                        const photoIdSet = new Set(photoIdStrings);
+
+                        if (folderType === 'SHARED') {
+                            setSharedFolders((prev) => (prev.includes(folderName) ? prev : [...prev, folderName]));
+                            setSharedFolderStorageByName((prev) => ({ ...prev, [folderName]: '0 MB' }));
+                            setSharedFolderCreatedAtByName((prev) => ({ ...prev, [folderName]: prev[folderName] ?? todayDateText }));
+                            setSharedFolderPhotosByName((prev) => ({
+                                ...prev,
+                                [folderName]: myPhotos
+                                    .filter((photo) => photoIdSet.has(photo.id))
+                                    .map((photo) => ({ photo, addedByMe: true }))
+                            }));
+                        } else {
+                            setFolders((prev) => (prev.includes(folderName) ? prev : [...prev, folderName]));
+                            setFolderStorageByName((prev) => ({ ...prev, [folderName]: '0 MB' }));
+                            setFolderCreatedAtByName((prev) => ({ ...prev, [folderName]: prev[folderName] ?? todayDateText }));
+                            setFolderPhotoIdsByName((prev) => ({ ...prev, [folderName]: photoIdStrings }));
+                        }
+                    }}
                 />
             </div>
 

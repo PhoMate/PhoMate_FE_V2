@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, UserPlus, Calendar, Image as ImageIcon, HardDrive, RefreshCw } from 'lucide-react';
 import ActionModal from './Actionmodal';
 import { authFetch } from '../api/auth';
+import { getMyMember } from '../api/member';
 import '../styles/SharedFolderModal.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
@@ -11,36 +12,175 @@ function toApiUrl(path: string): string {
   return new URL(path, API_BASE_URL).toString();
 }
 
+function asNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return null;
+}
+
 async function buildHttpError(response: Response, fallbackMessage: string): Promise<Error> {
   let detail = '';
+  let parsedDetail = '';
   try {
     detail = (await response.text()).trim();
+    if (detail && (detail.startsWith('{') || detail.startsWith('['))) {
+      const parsed = JSON.parse(detail) as JsonRecord;
+      parsedDetail =
+        asText(parsed.detail) ||
+        asText(parsed.message) ||
+        asText(parsed.title) ||
+        '';
+    }
   } catch {
     detail = '';
   }
 
-  const suffix = detail
-    ? ` (${response.status} ${response.statusText}: ${detail})`
+  const printableDetail = parsedDetail || detail;
+  const suffix = printableDetail
+    ? ` (${response.status} ${response.statusText}: ${printableDetail})`
     : ` (${response.status} ${response.statusText})`;
   return new Error(`${fallbackMessage}${suffix}`);
 }
 
-function inferMemberIdFromEmail(email: string): number | null {
-  const trimmed = email.trim().toLocaleLowerCase();
+type JsonRecord = Record<string, unknown>;
 
-  const memberAliasMatch = trimmed.match(/^member(\d+)@/);
-  if (memberAliasMatch) {
-    const parsed = Number(memberAliasMatch[1]);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+function normalizeName(value: string): string {
+  return value.trim().toLocaleLowerCase();
+}
+
+function asText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
+}
+
+function extractFolderItemsFromUnknown(payload: unknown): JsonRecord[] {
+  if (Array.isArray(payload)) return payload.filter((item) => !!item && typeof item === 'object') as JsonRecord[];
+  if (!payload || typeof payload !== 'object') return [];
+
+  const record = payload as JsonRecord;
+  const data = record.data && typeof record.data === 'object'
+    ? (record.data as JsonRecord)
+    : null;
+
+  const candidates: unknown[] = [
+    record.items,
+    record.folders,
+    record.content,
+    data?.items,
+    data?.folders,
+    data?.content
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate.filter((item) => !!item && typeof item === 'object') as JsonRecord[];
+    }
   }
 
-  const numericLocalPart = trimmed.split('@')[0] ?? '';
-  if (/^\d+$/.test(numericLocalPart)) {
-    const parsed = Number(numericLocalPart);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  return [];
+}
+
+async function fetchFolderItems(): Promise<JsonRecord[]> {
+  const response = await authFetch(toApiUrl('/api/folders'), { method: 'GET' });
+  if (!response.ok) {
+    throw await buildHttpError(response, '폴더 목록 조회에 실패했습니다.');
   }
 
-  return null;
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    return [];
+  }
+
+  return extractFolderItemsFromUnknown(payload);
+}
+
+function collectSharedFolderIdsByName(items: JsonRecord[], folderName: string): number[] {
+  const normalizedTarget = normalizeName(folderName);
+  const ids: number[] = [];
+
+  for (const item of items) {
+    const type = asText(item.type).toUpperCase();
+    if (type && type !== 'SHARED') continue;
+
+    const name =
+      asText(item.folderName) ||
+      asText(item.name) ||
+      asText(item.title);
+    if (!name || normalizeName(name) !== normalizedTarget) continue;
+
+    const id =
+      asNumber(item.folderId) ??
+      asNumber(item.id) ??
+      asNumber(item.folder_id) ??
+      null;
+    if (id && !ids.includes(id)) ids.push(id);
+  }
+
+  return ids;
+}
+
+async function resolveFolderIdByName(folderName: string): Promise<number | null> {
+  const items = await fetchFolderItems();
+  const ids = collectSharedFolderIdsByName(items, folderName);
+  return ids.length > 0 ? ids[0] : null;
+}
+
+async function createSharedFolderOnServer(folderName: string): Promise<number> {
+  const response = await authFetch(toApiUrl('/api/folders'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ folderName, type: 'SHARED' })
+  });
+
+  if (!response.ok) {
+    if (response.status === 409 || response.status === 400) {
+      const resolved = await resolveFolderIdByName(folderName);
+      if (resolved) return resolved;
+    }
+    throw await buildHttpError(response, '공유 폴더 생성에 실패했습니다.');
+  }
+
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('공유 폴더 생성 응답에 folderId가 없습니다.');
+  }
+
+  const record = payload as JsonRecord;
+  const data = record.data && typeof record.data === 'object'
+    ? (record.data as JsonRecord)
+    : null;
+  const folderId =
+    asNumber(record.folderId) ??
+    asNumber(record.id) ??
+    asNumber(data?.folderId) ??
+    asNumber(data?.id) ??
+    null;
+
+  if (!folderId) {
+    throw new Error('공유 폴더 생성 응답에서 folderId를 찾을 수 없습니다.');
+  }
+
+  return folderId;
+}
+
+async function resolveOrCreateSharedFolderId(folderName: string): Promise<number> {
+  const resolved = await resolveFolderIdByName(folderName);
+  if (resolved) return resolved;
+
+  const createdId = await createSharedFolderOnServer(folderName);
+  return createdId;
 }
 
 async function inviteSharedFolderMemberByEmail(
@@ -54,29 +194,37 @@ async function inviteSharedFolderMemberByEmail(
     body: JSON.stringify({ email, role })
   });
 
-  if (responseByEmail.ok) {
-    return { memberId: inferMemberIdFromEmail(email) };
+  if (!responseByEmail.ok) {
+    if (responseByEmail.status === 403) {
+      throw new Error('초대 권한이 없습니다. 해당 공유 폴더의 ADMIN 계정으로 로그인했는지 확인해주세요.');
+    }
+    throw await buildHttpError(responseByEmail, '공유 폴더 이메일 초대에 실패했습니다.');
   }
 
-  const inferredMemberId = inferMemberIdFromEmail(email);
-  if (inferredMemberId === null) {
-    throw await buildHttpError(
-      responseByEmail,
-      '이메일 초대 요청이 실패했습니다. 서버가 memberId 기반 초대만 지원할 수 있습니다.'
-    );
+  let parsedBody: unknown = null;
+  try {
+    parsedBody = await responseByEmail.json();
+  } catch {
+    parsedBody = null;
   }
 
-  const responseByMemberId = await authFetch(toApiUrl(`/api/folders/${folderId}/members`), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ memberId: inferredMemberId, role })
-  });
+  if (parsedBody && typeof parsedBody === 'object') {
+    const record = parsedBody as Record<string, unknown>;
+    const data = record.data && typeof record.data === 'object'
+      ? (record.data as Record<string, unknown>)
+      : null;
 
-  if (!responseByMemberId.ok) {
-    throw await buildHttpError(responseByMemberId, '공유 폴더 초대에 실패했습니다.');
+    const memberId =
+      asNumber(record.memberId) ??
+      asNumber(record.targetMemberId) ??
+      asNumber(data?.memberId) ??
+      asNumber(data?.targetMemberId) ??
+      null;
+
+    return { memberId };
   }
 
-  return { memberId: inferredMemberId };
+  return { memberId: null };
 }
 
 async function updateSharedFolderMemberRole(
@@ -91,8 +239,63 @@ async function updateSharedFolderMemberRole(
   });
 
   if (!response.ok) {
+    if (response.status === 403) {
+      throw new Error('권한 변경 권한이 없습니다. 공유 폴더 ADMIN만 권한을 변경할 수 있습니다.');
+    }
     throw await buildHttpError(response, '공유 폴더 권한 변경에 실패했습니다.');
   }
+}
+
+type SharedFolderRoleCheck = SharedFolderRole | 'UNKNOWN';
+
+async function getRoleOfMemberInFolder(folderId: number, memberId: number): Promise<SharedFolderRoleCheck> {
+  if (!memberId || memberId <= 0) return 'UNKNOWN';
+
+  const response = await authFetch(toApiUrl(`/api/folders/${folderId}/members/${memberId}/role`), {
+    method: 'GET'
+  });
+
+  if (!response.ok) {
+    if (response.status === 403 || response.status === 404) return 'UNKNOWN';
+    throw await buildHttpError(response, '내 폴더 권한 조회에 실패했습니다.');
+  }
+
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!payload || typeof payload !== 'object') return 'UNKNOWN';
+  const record = payload as JsonRecord;
+  const data = record.data && typeof record.data === 'object'
+    ? (record.data as JsonRecord)
+    : null;
+  const role = asText(record.role || data?.role).toUpperCase();
+  if (role === 'ADMIN' || role === 'WRITE' || role === 'READ') {
+    return role as SharedFolderRole;
+  }
+  return 'UNKNOWN';
+}
+
+async function getMyRoleInSharedFolder(folderId: number): Promise<SharedFolderRoleCheck> {
+  const me = await getMyMember();
+  return getRoleOfMemberInFolder(folderId, me.memberId);
+}
+
+async function resolveBestSharedFolderIdForInvite(folderName: string): Promise<number | null> {
+  const me = await getMyMember();
+  const items = await fetchFolderItems();
+  const ids = collectSharedFolderIdsByName(items, folderName);
+  if (ids.length === 0) return null;
+
+  for (const id of ids) {
+    const role = await getRoleOfMemberInFolder(id, me.memberId);
+    if (role === 'ADMIN') return id;
+  }
+
+  return ids[0] ?? null;
 }
 
 interface SharedFolderModalProps {
@@ -136,13 +339,44 @@ export default function SharedFolderModal({
   const [roleToUpdate, setRoleToUpdate] = useState<SharedFolderRole>('READ');
   const [statusMessage, setStatusMessage] = useState('');
   const [isBusy, setIsBusy] = useState(false);
+  const [resolvedFolderId, setResolvedFolderId] = useState<number | null>(typeof folderId === 'number' && folderId > 0 ? folderId : null);
 
-  const normalizeEmail = (value: string): string => value.trim().toLocaleLowerCase();
+  const normalizeEmail = (value: string): string => normalizeName(value);
   const isValidEmail = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
+
+  const targetFolderId = typeof folderId === 'number' && folderId > 0 ? folderId : resolvedFolderId;
 
   useEffect(() => {
     setInputName(folderName);
   }, [folderName, mode]);
+
+  useEffect(() => {
+    if (typeof folderId === 'number' && folderId > 0) {
+      setResolvedFolderId(folderId);
+      return;
+    }
+
+    if (mode !== 'settings') {
+      setResolvedFolderId(null);
+      return;
+    }
+
+    let mounted = true;
+    void (async () => {
+      try {
+        const resolved = await resolveFolderIdByName(folderName);
+        if (!mounted) return;
+        setResolvedFolderId(resolved);
+      } catch {
+        if (!mounted) return;
+        setResolvedFolderId(null);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [folderId, folderName, mode]);
 
   useEffect(() => {
     if (!storageScopedKey || mode !== 'settings') {
@@ -235,10 +469,18 @@ export default function SharedFolderModal({
     setIsBusy(true);
     setStatusMessage('');
     try {
+      let ensuredFolderId = targetFolderId;
+      if (!(typeof ensuredFolderId === 'number' && ensuredFolderId > 0)) {
+        ensuredFolderId = await resolveOrCreateSharedFolderId(folderName);
+        setResolvedFolderId(ensuredFolderId);
+      }
+
       let resolvedMemberId: number | undefined;
-      if (typeof folderId === 'number' && folderId > 0) {
-        const result = await inviteSharedFolderMemberByEmail(folderId, email, inviteRole);
+      if (typeof ensuredFolderId === 'number' && ensuredFolderId > 0) {
+        const result = await inviteSharedFolderMemberByEmail(ensuredFolderId, email, inviteRole);
         resolvedMemberId = result.memberId ?? undefined;
+      } else {
+        throw new Error('공유 폴더 ID를 찾지 못했습니다. 폴더를 새로고침한 뒤 다시 시도해주세요.');
       }
 
       upsertKnownMember(email, inviteRole, resolvedMemberId);
@@ -246,14 +488,21 @@ export default function SharedFolderModal({
         setRoleTargetEmail(email);
       }
       setInviteEmail('');
-      setStatusMessage(
-        typeof folderId === 'number' && folderId > 0
-          ? `${email} 초대 요청을 전송했습니다.`
-          : `${email}을(를) 로컬 초대 목록에 추가했습니다. (folderId 연동 전)`
-      );
+      setStatusMessage(`${email} 초대 요청을 전송했습니다.`);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '이메일 초대에 실패했습니다.';
-      setStatusMessage(message);
+      const isForbidden = message.includes('403') || message.includes('권한');
+      if (isForbidden) {
+        // 요청대로 권한과 무관하게 초대 목록에 남긴다(서버 반영은 별개)
+        upsertKnownMember(email, inviteRole);
+        if (!roleTargetEmail) {
+          setRoleTargetEmail(email);
+        }
+        setInviteEmail('');
+        setStatusMessage(`${email}을(를) 초대 목록에 추가했습니다. (서버 권한 제한으로 실제 초대 전송은 실패)`);
+      } else {
+        setStatusMessage(message);
+      }
     } finally {
       setIsBusy(false);
     }
@@ -271,18 +520,25 @@ export default function SharedFolderModal({
     setIsBusy(true);
     setStatusMessage('');
     try {
+      if (typeof targetFolderId === 'number' && targetFolderId > 0) {
+        const myRole = await getMyRoleInSharedFolder(targetFolderId);
+        if (myRole === 'READ' || myRole === 'WRITE') {
+          throw new Error('권한 변경 권한이 없습니다. 공유 폴더 ADMIN만 권한을 변경할 수 있습니다.');
+        }
+      }
+
       if (
-        typeof folderId === 'number' &&
-        folderId > 0 &&
+        typeof targetFolderId === 'number' &&
+        targetFolderId > 0 &&
         typeof selectedMember?.memberId === 'number' &&
         selectedMember.memberId > 0
       ) {
-        await updateSharedFolderMemberRole(folderId, selectedMember.memberId, roleToUpdate);
+        await updateSharedFolderMemberRole(targetFolderId, selectedMember.memberId, roleToUpdate);
       }
 
       upsertKnownMember(email, roleToUpdate, selectedMember?.memberId);
 
-      if (typeof folderId === 'number' && folderId > 0 && !(selectedMember?.memberId && selectedMember.memberId > 0)) {
+      if (typeof targetFolderId === 'number' && targetFolderId > 0 && !(selectedMember?.memberId && selectedMember.memberId > 0)) {
         setStatusMessage(`${email} 권한을 로컬에서 변경했습니다. (memberId 미확정)`);
       } else {
         setStatusMessage(`${email} 권한을 ${roleToUpdate}로 변경했습니다.`);

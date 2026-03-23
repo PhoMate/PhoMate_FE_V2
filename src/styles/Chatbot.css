@@ -191,6 +191,29 @@
     padding: 0 24px 24px;
 }
 
+.search-mode-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.search-mode-chip {
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #334155;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.search-mode-chip.active {
+    border-color: #003366;
+    background: #e6efff;
+    color: #003366;
+}
+
 .input-field-pill {
     display: flex;
     align-items: center;
@@ -229,10 +252,98 @@
     margin-top: 8px;
 }
 
+.folder-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+    margin-bottom: 10px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.folder-preview-photo {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    border: 2px solid #E2E8F0;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.folder-preview-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.folder-preview-photo-empty {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #F1F5F9;
+    color: #64748B;
+    font-size: 11px;
+    text-align: center;
+    padding: 4px;
+}
+
+.folder-preview-photo:hover {
+    border-color: #CBD5E1;
+    transform: scale(1.05);
+}
+
+.folder-preview-photo.selected {
+    border-color: #0F766E;
+    box-shadow: 0 0 0 2px #0F766E;
+}
+
+.photo-selected-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: #0F766E;
+    color: white;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.folder-preview-count {
+    font-size: 12px;
+    color: #64748B;
+    text-align: center;
+    margin-bottom: 8px;
+}
+
 .folder-preview-actions {
     display: flex;
+    flex-direction: column;
     gap: 8px;
     margin-top: 6px;
+}
+
+.folder-preview-actions > .folder-type-selector {
+    margin-bottom: 2px;
+}
+
+.folder-action-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.folder-action-buttons .folder-preview-btn {
+    flex: 1;
 }
 
 .folder-preview-btn {
@@ -256,6 +367,42 @@
 }
 
 .folder-preview-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.folder-type-selector {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.folder-type-btn {
+    flex: 1;
+    border: 1px solid #CBD5E1;
+    background: #F8FAFC;
+    color: #64748B;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.folder-type-btn:hover:not(:disabled) {
+    border-color: #94A3B8;
+    background: #F1F5F9;
+}
+
+.folder-type-btn.active {
+    border-color: #003366;
+    background: #E6EFFF;
+    color: #003366;
+    font-weight: 700;
+}
+
+.folder-type-btn:disabled {
     opacity: 0.6;
     cursor: default;
 }
