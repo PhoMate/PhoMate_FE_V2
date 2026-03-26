@@ -233,10 +233,15 @@ export async function streamSearchChat(
         onResults?: (items: SearchResultItem[]) => void;
     }
 ): Promise<void> {
+    const memberId = getMemberIdFromAccessToken();
     const endpoint = toApiUrl('/api/chat/search/stream');
     const body = JSON.stringify({
+        ...(memberId > 0 ? { memberId } : {}),
         chatSessionId: params.sessionId,
-        userText: params.message
+        chat_session_id: params.sessionId,
+        userText: params.message,
+        message: params.message,
+        query: params.message
     });
 
     const requestAndConsume = async (accept: string, fallbackMessage: string): Promise<void> => {
@@ -281,7 +286,10 @@ export async function streamTextChat(
     const body = JSON.stringify({
         ...(memberId > 0 ? { memberId } : {}),
         chatSessionId: params.sessionId,
-        userText: params.message
+        chat_session_id: params.sessionId,
+        userText: params.message,
+        message: params.message,
+        text: params.message
     });
 
     const requestAndConsume = async (accept: string, fallbackMessage: string): Promise<void> => {
@@ -367,7 +375,10 @@ export async function previewAutoFolder(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             chatSessionId: params.chatSessionId,
+            chat_session_id: params.chatSessionId,
             userText: params.userText,
+            message: params.userText,
+            query: params.userText,
             ...(typeof params.topK === 'number' ? { topK: params.topK } : {})
         })
     });
@@ -433,9 +444,11 @@ export async function confirmAutoFolder(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             chatSessionId: params.chatSessionId,
+            chat_session_id: params.chatSessionId,
             accepted: params.accepted,
             folderName: params.folderName,
             photoIds: params.photoIds,
+            photo_ids: params.photoIds,
             ...(params.folderType ? { folderType: params.folderType } : {})
         })
     });
