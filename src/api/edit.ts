@@ -16,6 +16,37 @@ function asNumber(value: unknown): number {
     return 0;
 }
 
+/** 지수 백오프 재시도 유틸 */
+async function fetchWithRetry(
+    fn: () => Promise<Response>,
+    options: { maxRetries?: number; baseDelayMs?: number } = {}
+): Promise<Response> {
+    const { maxRetries = 3, baseDelayMs = 1000 } = options;
+    let lastResponse: Response | null = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const response = await fn();
+
+        if (response.status === 429 && attempt < maxRetries) {
+            const retryAfter = response.headers.get('Retry-After');
+            const delayMs = retryAfter
+                ? Number(retryAfter) * 1000
+                : baseDelayMs * Math.pow(2, attempt); // 1s → 2s → 4s
+
+            console.warn(
+                `[edit] 429 Too Many Requests. ${delayMs}ms 후 재시도 (${attempt + 1}/${maxRetries})`
+            );
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+            lastResponse = response;
+            continue;
+        }
+
+        return response;
+    }
+
+    return lastResponse!;
+}
+
 export type EditVersionResponse = {
     editSessionId: number;
     editVersionId: number;
@@ -25,10 +56,12 @@ export type EditVersionResponse = {
     sourceType: 'CHAT' | 'DIRECT' | 'INITIAL';
 };
 
-/** 1. 편집 세션 시작 (v0 생성) */
+/** 1. 편집 세션 시작 (v0 생성) — 서버 필수 파라미터: photoId */
 export async function startEditSession(photoId: number): Promise<{ editSessionId: number }> {
+    // 서버 스펙 확인된 파라미터명을 첫 번째로, 이후 대체 후보 순서로 시도
     const candidates = [
-        `/api/edits/start?photoId=${photoId}`,
+        `/api/edits/start?photoId=${photoId}`,   // ← 서버 스펙 기준 (필수)
+        `/api/edits/start?photo_id=${photoId}`,
         `/api/edits/${photoId}/start`,
         `/api/edits/start?postId=${photoId}`
     ];
@@ -40,7 +73,6 @@ export async function startEditSession(photoId: number): Promise<{ editSessionId
 
         if (!response.ok) {
             lastStatus = `${response.status} ${response.statusText}`;
-            // 배포/스펙 불일치 환경에서는 400/404가 섞일 수 있어 다음 후보를 시도한다.
             if (response.status === 400 || response.status === 404) continue;
             throw new Error(`편집 세션을 시작할 수 없습니다. (${lastStatus})`);
         }
@@ -56,7 +88,9 @@ export async function startEditSession(photoId: number): Promise<{ editSessionId
         }
     }
 
-    throw new Error(`편집 세션을 시작할 수 없습니다. (${lastStatus || '사용 가능한 엔드포인트 없음'})`);
+    throw new Error(
+        `편집 세션을 시작할 수 없습니다. (${lastStatus || '사용 가능한 엔드포인트 없음'})`
+    );
 }
 
 /** 2. 현재 버전 정보 조회 */
@@ -68,17 +102,38 @@ export async function getCurrentEditVersion(editSessionId: number): Promise<Edit
     return response.json();
 }
 
-/** 3. 챗봇 편집 요청 (기존 API 유지하되 명세에 맞게 사용) */
-export async function sendChatEdit(chatSessionId: number, editSessionId: number, userText: string) {
+/**
+ * 3. 챗봇 편집 요청 — Gemini 429 대비 지수 백오프 재시도 적용
+ * ✅ 수정: sendChatEdit → sendEditChat 으로 이름 통일 (Chatbot.tsx import 와 일치)
+ */
+export async function sendEditChat(
+    chatSessionId: number,
+    editSessionId: number,
+    userText: string
+) {
     const params = new URLSearchParams({
         chatSessionId: String(chatSessionId),
         editSessionId: String(editSessionId),
-        userText: userText
+        userText
     });
-    const response = await authFetch(toApiUrl(`/api/chat/send-edit?${params.toString()}`), {
-        method: 'POST'
-    });
-    if (!response.ok) throw new Error('편집 메시지 전송 실패');
+
+    const response = await fetchWithRetry(
+        () =>
+            authFetch(toApiUrl(`/api/chat/send-edit?${params.toString()}`), {
+                method: 'POST'
+            }),
+        { maxRetries: 3, baseDelayMs: 1000 }
+    );
+
+    if (!response.ok) {
+        if (response.status === 429) {
+            throw new Error(
+                'AI 편집 요청이 너무 많습니다. 잠시 후 다시 시도해주세요. (429)'
+            );
+        }
+        throw new Error(`편집 메시지 전송 실패 (${response.status} ${response.statusText})`);
+    }
+
     return response.json();
 }
 
@@ -110,7 +165,10 @@ export async function finalizeEdit(editSessionId: number): Promise<string> {
 }
 
 /** 7. Direct Edit (ToastUI 결과물 업로드) */
-export async function uploadDirectEdit(editSessionId: number, file: File): Promise<EditVersionResponse> {
+export async function uploadDirectEdit(
+    editSessionId: number,
+    file: File
+): Promise<EditVersionResponse> {
     const formData = new FormData();
     formData.append('file', file);
     const response = await authFetch(toApiUrl(`/api/edits/${editSessionId}/direct`), {
@@ -123,7 +181,5 @@ export async function uploadDirectEdit(editSessionId: number, file: File): Promi
 
 /** 8. 편집 세션 취소 */
 export async function deleteEditSession(editSessionId: number): Promise<void> {
-    await authFetch(toApiUrl(`/api/edits/${editSessionId}`), {
-        method: 'DELETE'
-    });
+    await authFetch(toApiUrl(`/api/edits/${editSessionId}`), { method: 'DELETE' });
 }

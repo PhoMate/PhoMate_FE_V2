@@ -1,5 +1,6 @@
 type JsonRecord = Record<string, unknown>;
 import { authFetch, getAccessToken } from './auth';
+
 export type SearchResultItem = {
     postId?: number;
     photoId?: number;
@@ -19,9 +20,10 @@ function extractItemsFromUnknown(value: unknown): SearchResultItem[] {
     if (!value || typeof value !== 'object') return [];
 
     const record = value as JsonRecord;
-    const dataRecord = (record.data && typeof record.data === 'object')
-        ? (record.data as JsonRecord)
-        : null;
+    const dataRecord =
+        record.data && typeof record.data === 'object'
+            ? (record.data as JsonRecord)
+            : null;
 
     const candidates = [
         record.items,
@@ -38,14 +40,6 @@ function extractItemsFromUnknown(value: unknown): SearchResultItem[] {
 
     return [];
 }
-
-type SendEditChatResponse = {
-    chatSessionId: number;
-    userMessageId: number;
-    assistantMessageId: number;
-    assistantContent: string;
-    editedUrl: string;
-};
 
 export type ChatFolderPreviewPhoto = {
     photoId: number;
@@ -109,8 +103,7 @@ function extractTextFromPayload(payload: unknown): string {
     const directKeys = ['delta', 'content', 'message', 'text', 'token'];
 
     for (const key of directKeys) {
-        const value = record[key];
-        const text = asText(value);
+        const text = asText(record[key]);
         if (text) return text;
     }
 
@@ -118,8 +111,7 @@ function extractTextFromPayload(payload: unknown): string {
     if (data && typeof data === 'object') {
         const nested = data as JsonRecord;
         for (const key of directKeys) {
-            const value = nested[key];
-            const text = asText(value);
+            const text = asText(nested[key]);
             if (text) return text;
         }
     }
@@ -157,16 +149,12 @@ function parseEventBlock(block: string): { eventType: string; data: string } {
             eventType = line.slice(6).trim();
             continue;
         }
-
         if (line.startsWith('data:')) {
             dataLines.push(line.slice(5));
         }
     }
 
-    return {
-        eventType,
-        data: dataLines.join('\n')
-    };
+    return { eventType, data: dataLines.join('\n') };
 }
 
 function parseResultsItems(data: string): SearchResultItem[] {
@@ -241,10 +229,7 @@ export async function streamSearchChat(
 
     const response = await authFetch(endpoint, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Accept: 'text/event-stream'
-        },
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
         body,
         cache: 'no-store'
     });
@@ -256,16 +241,11 @@ export async function streamSearchChat(
     try {
         await consumeSearchStreamResponse(response, params);
     } catch (error) {
-        if (!isHttp2ProtocolError(error)) {
-            throw error;
-        }
+        if (!isHttp2ProtocolError(error)) throw error;
 
         const retryResponse = await authFetch(endpoint, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Accept: '*/*'
-            },
+            headers: { 'Content-Type': 'application/json', Accept: '*/*' },
             body,
             cache: 'no-store'
         });
@@ -296,10 +276,7 @@ export async function streamTextChat(
 
     const response = await authFetch(endpoint, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Accept: 'text/event-stream'
-        },
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
         body,
         cache: 'no-store'
     });
@@ -307,22 +284,18 @@ export async function streamTextChat(
     if (!response.ok) {
         throw await buildHttpError(response, '텍스트 스트리밍 요청에 실패했습니다.');
     }
+
     try {
         await consumeTextStreamResponse(response, {
             onDelta: params.onDelta,
             onError: params.onError
         });
     } catch (error) {
-        if (!isHttp2ProtocolError(error)) {
-            throw error;
-        }
+        if (!isHttp2ProtocolError(error)) throw error;
 
         const retryResponse = await authFetch(endpoint, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Accept: '*/*'
-            },
+            headers: { 'Content-Type': 'application/json', Accept: '*/*' },
             body,
             cache: 'no-store'
         });
@@ -338,48 +311,8 @@ export async function streamTextChat(
     }
 }
 
-export async function sendEditChat(
-    params: { chatSessionId: number; editSessionId: number; userText: string }
-): Promise<SendEditChatResponse> {
-    // chatSessionId가 유효하지 않으면 즉시 에러
-    if (!params.chatSessionId || params.chatSessionId <= 0) {
-        throw new Error('유효한 채팅 세션이 없습니다. 잠시 후 다시 시도해주세요.');
-    }
-
-    const query = new URLSearchParams({
-        chatSessionId: String(params.chatSessionId),
-        editSessionId: String(params.editSessionId),
-        userText: params.userText
-    });
-
-    const response = await authFetch(`${toApiUrl('/api/chat/send-edit')}?${query.toString()}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-    });
-
-    if (!response.ok) {
-        throw await buildHttpError(response, '편집 메시지 전송에 실패했습니다.');
-    }
-
-    const data = (await response.json()) as JsonRecord;
-    return {
-        chatSessionId:
-            asNumber(data.chatSessionId) ||
-            asNumber((data.data as JsonRecord | undefined)?.chatSessionId),
-        userMessageId:
-            asNumber(data.userMessageId) ||
-            asNumber((data.data as JsonRecord | undefined)?.userMessageId),
-        assistantMessageId:
-            asNumber(data.assistantMessageId) ||
-            asNumber((data.data as JsonRecord | undefined)?.assistantMessageId),
-        assistantContent:
-            asText(data.assistantContent) ||
-            asText((data.data as JsonRecord | undefined)?.assistantContent),
-        editedUrl:
-            asText(data.editedUrl) ||
-            asText((data.data as JsonRecord | undefined)?.editedUrl)
-    };
-}
+// ✅ 수정: sendEditChat 제거 — retry 로직이 포함된 edit.ts의 sendEditChat을 사용하세요.
+//    중복 선언을 제거해 혼선을 방지합니다.
 
 export async function previewAutoFolder(
     params: { chatSessionId: number; userText: string; topK?: number }
@@ -473,9 +406,7 @@ export async function confirmAutoFolder(
         asNumber(payload.folderId) ||
         asNumber((payload.data as JsonRecord | undefined)?.folderId);
 
-    return {
-        folderId: folderId > 0 ? folderId : null
-    };
+    return { folderId: folderId > 0 ? folderId : null };
 }
 
 function isDoneEvent(eventType: string, data: string): boolean {
@@ -517,6 +448,7 @@ async function consumeSearchStreamResponse(
 
         const { eventType, data } = parseEventBlock(block);
         const normalizedEventType = eventType.toLocaleLowerCase();
+
         const tryEmitResultsFromJsonText = (jsonText: string): boolean => {
             const trimmed = jsonText.trim();
             if (!trimmed || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) return false;
@@ -558,7 +490,6 @@ async function consumeSearchStreamResponse(
                     }
                 }
 
-                // event명이 달라도 JSON 본문 안에 results 배열이 있으면 결과로 처리한다.
                 const items = extractItemsFromUnknown(parsed);
                 if (items.length && params.onResults) {
                     emittedAnyDelta = true;
@@ -572,9 +503,7 @@ async function consumeSearchStreamResponse(
             return false;
         };
 
-        if (tryEmitResultsFromJsonText(data)) {
-            return;
-        }
+        if (tryEmitResultsFromJsonText(data)) return;
 
         if (
             normalizedEventType === 'results' ||
@@ -600,9 +529,7 @@ async function consumeSearchStreamResponse(
             return;
         }
 
-        if (isDoneEvent(eventType, data)) {
-            return;
-        }
+        if (isDoneEvent(eventType, data)) return;
 
         const parsed = parseStreamLine(data);
         if (parsed.done) return;
@@ -621,20 +548,14 @@ async function consumeSearchStreamResponse(
             const blocks = pending.split(/\r?\n\r?\n/);
             pending = blocks.pop() ?? '';
 
-            for (const block of blocks) {
-                consumeBlock(block);
-            }
+            for (const block of blocks) consumeBlock(block);
         }
     } catch (error) {
-        if (!emittedAnyDelta) {
-            throw error;
-        }
+        if (!emittedAnyDelta) throw error;
     }
 
     pending += decoder.decode();
-    if (pending.trim()) {
-        consumeBlock(pending);
-    }
+    if (pending.trim()) consumeBlock(pending);
 }
 
 async function consumeTextStreamResponse(
@@ -667,15 +588,11 @@ async function consumeTextStreamResponse(
         }
 
         if (eventType === 'error') {
-            if (params.onError) {
-                params.onError(data.trim() || 'stream_failed');
-            }
+            if (params.onError) params.onError(data.trim() || 'stream_failed');
             return false;
         }
 
-        if (isDoneEvent(eventType, data)) {
-            return true;
-        }
+        if (isDoneEvent(eventType, data)) return true;
 
         const parsed = parseStreamLine(data);
         if (parsed.done) return true;
@@ -701,13 +618,9 @@ async function consumeTextStreamResponse(
             }
         }
     } catch (error) {
-        if (!emittedAnyDelta) {
-            throw error;
-        }
+        if (!emittedAnyDelta) throw error;
     }
 
     pending += decoder.decode();
-    if (pending.trim()) {
-        consumeBlock(pending);
-    }
+    if (pending.trim()) consumeBlock(pending);
 }
