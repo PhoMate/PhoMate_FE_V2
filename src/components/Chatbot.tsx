@@ -5,7 +5,6 @@ import {
     type SearchResultItem,
     confirmAutoFolder,
     previewAutoFolder,
-    sendEditChat,
     startChatSession,
     streamSearchChat,
     streamTextChat
@@ -15,6 +14,7 @@ import {
     getCurrentEditVersion,
     undoEdit,
     redoEdit,
+    sendEditChat,
     finalizeEdit
 } from '../api/edit';
 import { getPhotoDetail } from '../api/photo';
@@ -46,10 +46,32 @@ type ChatbotProps = {
     isLoggedIn: boolean;
     selectedPhotoId?: number | null;
     onSearchResults?: (payload: { query: string; photos: ChatFolderPreviewPhoto[] }) => void;
+    onSessionStart?: (id: number) => void;
     onFolderCreated?: (folderName: string, folderType: 'PERSONAL' | 'SHARED', photoIds: number[]) => void;
 };
 
-export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedPhotoId, onSearchResults, onFolderCreated }: ChatbotProps) {
+const INITIAL_SEARCH_MESSAGES: ChatMessage[] = [
+    { id: 'initial-assistant', role: 'assistant', content: '사진에 대한 설명을 적어주세요.' }
+];
+
+const INITIAL_EDIT_MESSAGES: ChatMessage[] = [
+    {
+        id: 'initial-edit-assistant',
+        role: 'assistant',
+        content: '편집할 사진을 선택하거나 이미지를 드래그해서 올려주세요.'
+    }
+];
+
+export default function Chatbot({
+    isOpen,
+    onClose,
+    onOpen,
+    isLoggedIn,
+    selectedPhotoId,
+    onSearchResults,
+    onSessionStart,
+    onFolderCreated
+}: ChatbotProps) {
     const isGuestChatMode = import.meta.env.VITE_CHAT_GUEST_MODE === 'true';
     const [activeTab, setActiveTab] = useState<ChatTab>('search');
 
@@ -61,15 +83,11 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
     const [isEditSessionLoading, setIsEditSessionLoading] = useState(false);
     const editSessionPhotoIdRef = useRef<number | null>(null);
 
-    const [searchMessages, setSearchMessages] = useState<ChatMessage[]>([
-        { id: 'initial-assistant', role: 'assistant', content: '사진에 대한 설명을 적어주세요.' }
-    ]);
-    const [editMessages, setEditMessages] = useState<ChatMessage[]>([
-        { id: 'initial-edit-assistant', role: 'assistant', content: '편집할 사진을 선택하거나 이미지를 드래그해서 올려주세요.' }
-    ]);
+    const [searchMessages, setSearchMessages] = useState<ChatMessage[]>(INITIAL_SEARCH_MESSAGES);
+    const [editMessages, setEditMessages] = useState<ChatMessage[]>(INITIAL_EDIT_MESSAGES);
 
-    const [editAssistantContent, setEditAssistantContent] = useState('');
     const [editedImageUrl, setEditedImageUrl] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
     const [input, setInput] = useState('');
     const [isSending, setIsSending] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
@@ -77,7 +95,9 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
     const [folderPreviewType, setFolderPreviewType] = useState<'PERSONAL' | 'SHARED'>('PERSONAL');
     const [searchMode, setSearchMode] = useState<SearchMode>('auto');
     const [isEditDragOver, setIsEditDragOver] = useState(false);
+
     const bodyRef = useRef<HTMLDivElement | null>(null);
+    const editChatRef = useRef<HTMLDivElement | null>(null);
     const localEditPreviewUrlRef = useRef<string | null>(null);
 
     const setSessionIdSync = (id: number) => {
@@ -90,11 +110,38 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
         setEditSessionId(id);
     };
 
+    // 편집 상태 초기화
+    const resetEditState = () => {
+        editSessionIdRef.current = null;
+        editSessionPhotoIdRef.current = null;
+        setEditSessionId(null);
+        setEditedImageUrl('');
+        setEditMessages([...INITIAL_EDIT_MESSAGES]);
+        setErrorMessage('');
+        if (localEditPreviewUrlRef.current) {
+            URL.revokeObjectURL(localEditPreviewUrlRef.current);
+            localEditPreviewUrlRef.current = null;
+        }
+    };
+
+    // X버튼 — 전체 초기화 후 닫기
+    const handleClose = () => {
+        setSearchMessages([...INITIAL_SEARCH_MESSAGES]);
+        setFolderPreview(null);
+        setInput('');
+        setErrorMessage('');
+        sessionIdRef.current = null;
+        setSessionId(null);
+        resetEditState();
+        onClose();
+    };
+
     const handleTabChange = (tab: ChatTab) => {
         setActiveTab(tab);
         setErrorMessage('');
     };
 
+    // 채팅 세션 초기화
     useEffect(() => {
         if (!isOpen || sessionIdRef.current !== null) return;
         if (!isGuestChatMode && !isLoggedIn) {
@@ -103,19 +150,21 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
         }
         let mounted = true;
         startChatSession()
-            .then((id) => { if (mounted) setSessionIdSync(id); })
+            .then((id) => {
+                if (!mounted) return;
+                setSessionIdSync(id);
+                if (onSessionStart) onSessionStart(id);
+            })
             .catch((error: unknown) => {
                 if (!mounted) return;
                 setErrorMessage(error instanceof Error ? error.message : '세션을 시작할 수 없습니다.');
             });
         return () => { mounted = false; };
-    }, [isGuestChatMode, isLoggedIn, isOpen]);
+    }, [isGuestChatMode, isLoggedIn, isOpen, onSessionStart]);
 
-    // selectedPhotoId로 편집 세션 시작
+    // selectedPhotoId로 편집 세션 자동 시작
     useEffect(() => {
-        if (!isOpen || activeTab !== 'edit') return;
-        if (!isLoggedIn) return;
-        if (!selectedPhotoId) return;
+        if (!isOpen || activeTab !== 'edit' || !isLoggedIn || !selectedPhotoId) return;
         if (editSessionPhotoIdRef.current === selectedPhotoId && editSessionIdRef.current !== null) return;
         if (isEditSessionLoading) return;
 
@@ -135,54 +184,61 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
         resolveTargetId()
             .then((targetId) => startEditSession(targetId))
             .then((res) => {
-                const confirmedId = res.editSessionId;
-                setEditSessionIdSync(confirmedId);
-                return getCurrentEditVersion(confirmedId);
+                setEditSessionIdSync(res.editSessionId);
+                return getCurrentEditVersion(res.editSessionId);
             })
             .then((ver) => {
-                if (ver.imageUrl && !editedImageUrl) {
-                    setEditedImageUrl(ver.imageUrl);
-                }
-                setEditAssistantContent('원본 이미지를 불러왔습니다. 편집 명령을 입력해주세요.');
+                if (ver.imageUrl) setEditedImageUrl(ver.imageUrl);
+                appendEditMessage('assistant', '원본 이미지를 불러왔습니다. 편집 명령을 입력해주세요.');
             })
             .catch((error: unknown) => {
                 editSessionPhotoIdRef.current = null;
                 setErrorMessage(error instanceof Error ? error.message : '편집 세션을 시작할 수 없습니다.');
             })
-            .finally(() => {
-                setIsEditSessionLoading(false);
-            });
+            .finally(() => setIsEditSessionLoading(false));
     }, [isOpen, activeTab, isLoggedIn, selectedPhotoId, isEditSessionLoading]);
 
+    // 로그인 시 오류 메시지 초기화
     useEffect(() => {
         if (isLoggedIn && errorMessage.includes('로그인 후')) {
             setErrorMessage('');
         }
     }, [errorMessage, isLoggedIn]);
 
+    // 검색 탭 스크롤
     useEffect(() => {
         if (!bodyRef.current) return;
         bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
-    }, [searchMessages, editMessages, errorMessage]);
+    }, [searchMessages, errorMessage]);
 
+    // 편집 탭 스크롤
+    useEffect(() => {
+        if (!editChatRef.current) return;
+        editChatRef.current.scrollTop = editChatRef.current.scrollHeight;
+    }, [editMessages]);
+
+    // ObjectURL 정리
     useEffect(() => {
         return () => {
-            if (!localEditPreviewUrlRef.current) return;
-            URL.revokeObjectURL(localEditPreviewUrlRef.current);
-            localEditPreviewUrlRef.current = null;
+            if (localEditPreviewUrlRef.current) URL.revokeObjectURL(localEditPreviewUrlRef.current);
         };
     }, []);
 
     const ensureSessionId = async (): Promise<number> => {
         if (sessionIdRef.current !== null && sessionIdRef.current > 0) return sessionIdRef.current;
-        const newSessionId = await startChatSession();
-        setSessionIdSync(newSessionId);
-        return newSessionId;
+        const newId = await startChatSession();
+        setSessionIdSync(newId);
+        if (onSessionStart) onSessionStart(newId);
+        return newId;
     };
 
     const ensureEditSessionId = (): number => {
         if (editSessionIdRef.current !== null && editSessionIdRef.current > 0) return editSessionIdRef.current;
         throw new Error('편집 세션이 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.');
+    };
+
+    const updateSearchMessage = (targetId: string, content: string) => {
+        setSearchMessages((prev) => prev.map((m) => (m.id === targetId ? { ...m, content } : m)));
     };
 
     const appendSearchMessage = (role: ChatRole, content: string): string => {
@@ -191,21 +247,10 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
         return id;
     };
 
-    const updateSearchMessage = (targetId: string, content: string) => {
-        setSearchMessages((prev) => prev.map((m) => m.id === targetId ? { ...m, content } : m));
-    };
-
     const appendEditMessage = (role: ChatRole, content: string): string => {
         const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
         setEditMessages((prev) => [...prev, { id, role, content }]);
         return id;
-    };
-
-    const shouldAttemptSearch = (text: string) => {
-        const n = text.trim().toLocaleLowerCase();
-        if (!n) return false;
-        // 검색 탭에서는 키워드 강제 없이 자연어를 우선 검색 요청으로 본다.
-        return n.length >= 2;
     };
 
     const isFolderOrganizeIntent = (text: string) => {
@@ -237,10 +282,8 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
         return match ? Number(match[1]) : null;
     };
 
-    // 드롭된 URL로 편집 세션 자동 시작
     const startEditSessionFromUrl = (photoId: number) => {
         if (editSessionIdRef.current !== null || isEditSessionLoading) return;
-
         setIsEditSessionLoading(true);
         editSessionPhotoIdRef.current = photoId;
 
@@ -256,18 +299,117 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
         resolveTargetId()
             .then((targetId) => startEditSession(targetId))
             .then((res) => {
-                const confirmedId = res.editSessionId;
-                setEditSessionIdSync(confirmedId);
-                setEditAssistantContent('편집 세션이 준비되었습니다. 편집 명령을 입력해주세요.');
+                setEditSessionIdSync(res.editSessionId);
                 appendEditMessage('assistant', '편집 세션이 준비되었습니다. 편집 명령을 입력해주세요.');
             })
             .catch((error: unknown) => {
                 editSessionPhotoIdRef.current = null;
                 setErrorMessage(error instanceof Error ? error.message : '편집 세션을 시작할 수 없습니다.');
             })
-            .finally(() => {
-                setIsEditSessionLoading(false);
-            });
+            .finally(() => setIsEditSessionLoading(false));
+    };
+
+    const buildSearchCandidates = (query: string): string[] => {
+        const normalized = query.replace(/\s+/g, ' ').trim();
+        const simplified = normalized
+            .replace(/검색해줘|검색해 줘|검색|찾아줘|찾아 줘|찾아|보여줘|보여 줘|추천해줘|추천해 줘|추천|해줘|해 줘/gi, ' ')
+            .replace(/[!?.,]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        const composed = simplified
+            .replace(/\b와\b|\b과\b|\b및\b|\b랑\b|\b하고\b/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        return Array.from(new Set([normalized, composed, simplified].filter((v) => v.length > 1)));
+    };
+
+    const mapSearchItemsToPhotos = (items: SearchResultItem[], trimmed: string): ChatFolderPreviewPhoto[] => {
+        const toNumber = (value: unknown): number => {
+            if (typeof value === 'number' && Number.isFinite(value)) return value;
+            if (typeof value === 'string' && value.trim()) {
+                const parsed = Number(value);
+                if (Number.isFinite(parsed)) return parsed;
+            }
+            return 0;
+        };
+        const toText = (value: unknown): string => {
+            if (typeof value === 'string') return value;
+            if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+            return '';
+        };
+        const normalize = (value: string): string => value.toLocaleLowerCase().trim();
+        const compact = (value: string): string => normalize(value).replace(/\s+/g, '');
+        const expandToken = (token: string): string[] => {
+            const base = compact(token);
+            if (!base) return [];
+            const expanded = new Set<string>([base]);
+            if (base.length >= 4) {
+                for (let i = 0; i <= base.length - 2; i += 1) {
+                    expanded.add(base.slice(i, i + 2));
+                }
+            }
+            return Array.from(expanded);
+        };
+
+        const queryTokens = normalize(trimmed)
+            .split(/\s+/)
+            .map((token) => token.trim())
+            .filter((token) => token.length > 1)
+            .filter((token) => !['사진', '검색', '찾아', '찾기', '해줘', '보여줘'].includes(token));
+        const expandedQueryTokens = Array.from(new Set(queryTokens.flatMap((token) => expandToken(token))));
+
+        const scoreByQuery = (item: SearchResultItem): number => {
+            const itemRecord = item as Record<string, unknown>;
+            const serverScoreRaw =
+                itemRecord.score ?? itemRecord.similarity ?? itemRecord.similarityScore ?? itemRecord.relevanceScore;
+            const serverScore = toNumber(serverScoreRaw);
+            const bag = [
+                item.title,
+                itemRecord.description, itemRecord.caption, itemRecord.prompt,
+                itemRecord.style, itemRecord.tags, itemRecord.category
+            ]
+                .map((v) => Array.isArray(v) ? v.join(' ') : toText(v))
+                .join(' ')
+                .toLocaleLowerCase();
+            const compactBag = compact(bag);
+            const compactFullQuery = compact(trimmed);
+
+            if (!bag) {
+                return compactFullQuery.length > 1 &&
+                    compact(toText(itemRecord.previewUrl) || toText(itemRecord.thumbnailUrl) || toText(itemRecord.imageUrl)).includes(compactFullQuery)
+                    ? 50 : 0;
+            }
+
+            let score = serverScore > 0 ? serverScore * 20 : 0;
+            const fullQuery = normalize(trimmed);
+            if (fullQuery.length > 1 && bag.includes(fullQuery)) score += 10;
+            if (compact(fullQuery).length > 1 && compactBag.includes(compact(fullQuery))) score += 14;
+            for (const token of queryTokens) { if (bag.includes(token)) score += 4; }
+            for (const token of expandedQueryTokens) { if (compactBag.includes(token)) score += token.length >= 4 ? 4 : 1; }
+            return score;
+        };
+
+        return items
+            .map((item, index) => {
+                const score = scoreByQuery(item);
+                return {
+                    index,
+                    score,
+                    matched: score >= 10,
+                    photo: {
+                        photoId: toNumber(item.photoId) || toNumber(item.postId),
+                        previewUrl: toText(item.previewUrl) || toText(item.thumbnailUrl) || toText(item.imageUrl),
+                        shotAt: toText(item.shotAt)
+                    }
+                };
+            })
+            .sort((a, b) => {
+                if (a.matched !== b.matched) return a.matched ? -1 : 1;
+                if (b.score !== a.score) return b.score - a.score;
+                return a.index - b.index;
+            })
+            .map((entry) => entry.photo)
+            .filter((item) => item.photoId > 0 && !!item.previewUrl);
     };
 
     const handleSend = async () => {
@@ -329,135 +471,6 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                     updateSearchMessage(assistantMessageId, streamedText);
                 };
 
-                const buildSearchCandidates = (query: string): string[] => {
-                    const normalized = query.replace(/\s+/g, ' ').trim();
-                    const simplified = normalized
-                        .replace(/검색해줘|검색해 줘|검색|찾아줘|찾아 줘|찾아|보여줘|보여 줘|추천해줘|추천해 줘|추천|해줘|해 줘/gi, ' ')
-                        .replace(/[!?.,]/g, ' ')
-                        .replace(/\s+/g, ' ')
-                        .trim();
-                    const composed = simplified
-                        .replace(/\b와\b|\b과\b|\b및\b|\b랑\b|\b하고\b/g, ' ')
-                        .replace(/\s+/g, ' ')
-                        .trim();
-
-                    return Array.from(new Set([normalized, composed, simplified].filter((v) => v.length > 1)));
-                };
-
-                const mapSearchItemsToPhotos = (items: SearchResultItem[]): ChatFolderPreviewPhoto[] => {
-                    const toNumber = (value: unknown): number => {
-                        if (typeof value === 'number' && Number.isFinite(value)) return value;
-                        if (typeof value === 'string' && value.trim()) {
-                            const parsed = Number(value);
-                            if (Number.isFinite(parsed)) return parsed;
-                        }
-                        return 0;
-                    };
-
-                    const toText = (value: unknown): string => {
-                        if (typeof value === 'string') return value;
-                        if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-                        return '';
-                    };
-
-                    const normalize = (value: string): string => value.toLocaleLowerCase().trim();
-                    const compact = (value: string): string => normalize(value).replace(/\s+/g, '');
-
-                    const expandToken = (token: string): string[] => {
-                        const base = compact(token);
-                        if (!base) return [];
-
-                        const expanded = new Set<string>([base]);
-
-                        // 한국어 합성어(예: 체크셔츠) 대응을 위해 2글자 부분 토큰을 추가한다.
-                        if (base.length >= 4) {
-                            for (let i = 0; i <= base.length - 2; i += 1) {
-                                expanded.add(base.slice(i, i + 2));
-                            }
-                        }
-
-                        return Array.from(expanded);
-                    };
-
-                    const queryTokens = normalize(trimmed)
-                        .split(/\s+/)
-                        .map((token) => token.trim())
-                        .filter((token) => token.length > 1)
-                        .filter((token) => !['사진', '검색', '찾아', '찾기', '해줘', '보여줘'].includes(token));
-                    const expandedQueryTokens = Array.from(new Set(queryTokens.flatMap((token) => expandToken(token))));
-
-                    const scoreByQuery = (item: SearchResultItem): number => {
-                        const itemRecord = item as Record<string, unknown>;
-                        const serverScoreRaw =
-                            itemRecord.score ??
-                            itemRecord.similarity ??
-                            itemRecord.similarityScore ??
-                            itemRecord.relevanceScore;
-                        const serverScore = toNumber(serverScoreRaw);
-
-                        const bag = [
-                            item.title,
-                            itemRecord.description,
-                            itemRecord.caption,
-                            itemRecord.prompt,
-                            itemRecord.style,
-                            itemRecord.tags,
-                            itemRecord.category
-                        ]
-                            .map((v) => Array.isArray(v) ? v.join(' ') : toText(v))
-                            .join(' ')
-                            .toLocaleLowerCase();
-                        const compactBag = compact(bag);
-
-                        const compactFullQuery = compact(trimmed);
-
-                        if (!bag) {
-                            return compactFullQuery.length > 1 && compact(toText(itemRecord.previewUrl) || toText(itemRecord.thumbnailUrl) || toText(itemRecord.imageUrl)).includes(compactFullQuery)
-                                ? 50
-                                : 0;
-                        }
-
-                        // 서버 score는 보조 지표로만 반영하고, 키워드 일치를 우선한다.
-                        let score = serverScore > 0 ? serverScore * 20 : 0;
-                        const fullQuery = normalize(trimmed);
-                        if (fullQuery.length > 1 && bag.includes(fullQuery)) score += 10;
-                        if (compact(fullQuery).length > 1 && compactBag.includes(compact(fullQuery))) score += 14;
-
-                        for (const token of queryTokens) {
-                            if (bag.includes(token)) score += 4;
-                        }
-
-                        for (const token of expandedQueryTokens) {
-                            if (compactBag.includes(token)) score += token.length >= 4 ? 4 : 1;
-                        }
-
-                        return score;
-                    };
-
-                    return items
-                        .map((item, index) => {
-                            const score = scoreByQuery(item);
-                            return {
-                                index,
-                                score,
-                                matched: score >= 10,
-                                photo: {
-                                    // 서버 스키마가 배포마다 달라도 카드 렌더링 가능한 값을 우선 추출한다.
-                                    photoId: toNumber(item.photoId) || toNumber(item.postId),
-                                    previewUrl: toText(item.previewUrl) || toText(item.thumbnailUrl) || toText(item.imageUrl),
-                                    shotAt: toText(item.shotAt)
-                                }
-                            };
-                        })
-                        .sort((a, b) => {
-                            if (a.matched !== b.matched) return a.matched ? -1 : 1;
-                            if (b.score !== a.score) return b.score - a.score;
-                            return a.index - b.index;
-                        })
-                        .map((entry) => entry.photo)
-                        .filter((item) => item.photoId > 0 && !!item.previewUrl);
-                };
-
                 if (searchMode === 'search' || searchMode === 'auto') {
                     const searchCandidates = buildSearchCandidates(trimmed);
                     let hasResultItems = false;
@@ -467,7 +480,7 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                             message: searchCandidates[0] ?? trimmed,
                             onDelta: handleDelta,
                             onResults: (items) => {
-                                const mapped = mapSearchItemsToPhotos(items);
+                                const mapped = mapSearchItemsToPhotos(items, trimmed);
                                 hasResultItems = mapped.length > 0;
                                 onSearchResults?.({ query: trimmed, photos: mapped });
                             }
@@ -487,7 +500,7 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                                         break;
                                     }
                                 } catch {
-                                    // fallback 후보를 순차 시도한다.
+                                    // fallback 후보를 순차 시도
                                 }
                             }
                         }
@@ -545,15 +558,10 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                 const currentSessionId = await ensureSessionId();
                 const currentEditSessionId = ensureEditSessionId();
 
-                const reply = await sendEditChat({
-                    chatSessionId: currentSessionId,
-                    editSessionId: currentEditSessionId,
-                    userText: trimmed
-                });
+                const reply = await sendEditChat(currentSessionId, currentEditSessionId, trimmed);
 
                 const nextText = reply.assistantContent || '편집 응답이 비어 있습니다.';
                 appendEditMessage('assistant', nextText);
-                setEditAssistantContent(nextText);
                 if (reply.editedUrl) setEditedImageUrl(reply.editedUrl);
             }
         } catch (error: unknown) {
@@ -569,7 +577,7 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
         try {
             const res = await undoEdit(editSessionIdRef.current);
             setEditedImageUrl(res.imageUrl);
-            setEditAssistantContent(`이전 단계로 되돌렸습니다. (v${res.versionIndex})`);
+            appendEditMessage('assistant', `이전 단계로 되돌렸습니다. (v${res.versionIndex})`);
             setErrorMessage('');
         } catch (err: unknown) {
             setErrorMessage(err instanceof Error ? err.message : '되돌리기 실패');
@@ -584,7 +592,7 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
         try {
             const res = await redoEdit(editSessionIdRef.current);
             setEditedImageUrl(res.imageUrl);
-            setEditAssistantContent(`다음 단계로 이동했습니다. (v${res.versionIndex})`);
+            appendEditMessage('assistant', `다음 단계로 이동했습니다. (v${res.versionIndex})`);
             setErrorMessage('');
         } catch (err: unknown) {
             setErrorMessage(err instanceof Error ? err.message : '다시 실행 실패');
@@ -594,17 +602,17 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
     };
 
     const handleSaveAndExit = async () => {
-        if (!editedImageUrl || isSending || editSessionIdRef.current === null) return;
-        setIsSending(true);
+        if (!editedImageUrl || isSaving || editSessionIdRef.current === null) return;
+        setIsSaving(true);
         try {
             const finalUrl = await finalizeEdit(editSessionIdRef.current);
             setEditedImageUrl(finalUrl);
-            setEditAssistantContent('최종 저장이 완료되었습니다. 갤러리에서 확인하세요!');
+            appendEditMessage('assistant', '최종 저장이 완료되었습니다. 갤러리에서 확인하세요!');
             setTimeout(() => onClose(), 1500);
         } catch (err: unknown) {
             setErrorMessage(err instanceof Error ? err.message : '저장 실패');
         } finally {
-            setIsSending(false);
+            setIsSaving(false);
         }
     };
 
@@ -625,7 +633,7 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
         setErrorMessage('');
         try {
             const currentSessionId = sessionIdRef.current || await ensureSessionId();
-            const response = await confirmAutoFolder({
+            await confirmAutoFolder({
                 chatSessionId: currentSessionId,
                 accepted,
                 folderName: folderPreview.folderName,
@@ -636,10 +644,7 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
             if (accepted && folderPreview) {
                 onFolderCreated?.(folderPreview.folderName, folderType, [...folderPreview.selectedPhotoIds]);
             }
-            appendSearchMessage('assistant', accepted
-                ? '폴더가 생성되었습니다.'
-                : '폴더 생성을 취소했습니다.'
-            );
+            appendSearchMessage('assistant', accepted ? '폴더가 생성되었습니다.' : '폴더 생성을 취소했습니다.');
         } catch (error: unknown) {
             setErrorMessage(error instanceof Error ? error.message : '폴더 생성 확정 중 오류가 발생했습니다.');
         } finally {
@@ -661,35 +666,26 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
 
     const applyDroppedEditImage = (file: File) => {
         if (!file.type.startsWith('image/')) { setErrorMessage('이미지 파일만 드롭할 수 있습니다.'); return; }
-        if (localEditPreviewUrlRef.current) { URL.revokeObjectURL(localEditPreviewUrlRef.current); localEditPreviewUrlRef.current = null; }
+        resetEditState();
         const objectUrl = URL.createObjectURL(file);
         localEditPreviewUrlRef.current = objectUrl;
         setEditedImageUrl(objectUrl);
-        setEditAssistantContent('드롭한 이미지가 적용되었습니다. (로컬 파일은 AI 편집이 제한될 수 있습니다.)');
+        appendEditMessage('assistant', '새 이미지가 적용되었습니다. 편집 명령을 입력해주세요.');
         setErrorMessage('');
     };
 
     const applyDroppedEditUrl = (url: string) => {
         const t = url.trim();
-        if (!t || !isLikelyImageUrl(t)) {
-            setErrorMessage('이미지 URL만 드롭할 수 있습니다.');
-            return;
-        }
-        if (localEditPreviewUrlRef.current) {
-            URL.revokeObjectURL(localEditPreviewUrlRef.current);
-            localEditPreviewUrlRef.current = null;
-        }
-
+        if (!t || !isLikelyImageUrl(t)) { setErrorMessage('이미지 URL만 드롭할 수 있습니다.'); return; }
+        resetEditState();
         setEditedImageUrl(t);
         setErrorMessage('');
-
-        // URL에서 photoId 추출 후 편집 세션 자동 시작
         const photoId = extractPhotoIdFromUrl(t);
         if (photoId) {
-            setEditAssistantContent('이미지를 인식했습니다. 편집 세션을 시작하는 중...');
+            appendEditMessage('assistant', '이미지를 인식했습니다. 편집 세션을 시작하는 중...');
             startEditSessionFromUrl(photoId);
         } else {
-            setEditAssistantContent('드롭한 이미지가 적용되었습니다. (외부 이미지는 AI 편집이 제한될 수 있습니다.)');
+            appendEditMessage('assistant', '드롭한 이미지가 적용되었습니다. (외부 이미지는 AI 편집이 제한될 수 있습니다.)');
         }
     };
 
@@ -740,7 +736,11 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
     };
 
     if (!isOpen) {
-        return <button className="chatbot-open-trigger" onClick={onOpen}>챗봇 열기</button>;
+        return (
+            <button className="chatbot-open-trigger" onClick={onOpen}>
+                챗봇 열기
+            </button>
+        );
     }
 
     const isEditReady = editSessionIdRef.current !== null && !isEditSessionLoading;
@@ -765,24 +765,25 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                             편집
                         </button>
                     </div>
-                    <button className="panel-close-btn" onClick={onClose}>
+                    <button className="panel-close-btn" onClick={handleClose}>
                         <X size={20} />
                     </button>
                 </div>
 
                 {/* 바디 */}
-                <div className="chatbot-body" ref={bodyRef}>
+                <div className="chatbot-body" ref={activeTab === 'search' ? bodyRef : undefined}>
                     {activeTab === 'search' ? (
+                        // ── 검색 탭
                         <div className="chat-view scroll-hide">
-                            {searchMessages.map((message) => (
+                            {searchMessages.map((m) => (
                                 <div
-                                    key={message.id}
-                                    className={message.role === 'assistant' ? 'msg-bubble-bot' : 'msg-bubble-user'}
+                                    key={m.id}
+                                    className={m.role === 'assistant' ? 'msg-bubble-bot' : 'msg-bubble-user'}
                                 >
-                                    {message.content || '...'}
+                                    {m.content || '...'}
                                 </div>
                             ))}
-                            {folderPreview && folderPreview.status === 'pending' ? (
+                            {folderPreview && folderPreview.status === 'pending' && (
                                 <div>
                                     <div className="folder-preview-grid">
                                         {folderPreview.photos.map((photo) => (
@@ -806,45 +807,47 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                                         선택된 사진: {folderPreview.selectedPhotoIds.length}장
                                     </div>
                                     <div className="folder-preview-actions">
-                                    <div className="folder-type-selector">
-                                        <button
-                                            className={`folder-type-btn ${folderPreviewType === 'PERSONAL' ? 'active' : ''}`}
-                                            onClick={() => setFolderPreviewType('PERSONAL')}
-                                            disabled={isSending}
-                                        >
-                                            📁 폴더
-                                        </button>
-                                        <button
-                                            className={`folder-type-btn ${folderPreviewType === 'SHARED' ? 'active' : ''}`}
-                                            onClick={() => setFolderPreviewType('SHARED')}
-                                            disabled={isSending}
-                                        >
-                                            🔗 공유폴더
-                                        </button>
-                                    </div>
-                                    <div className="folder-action-buttons">
-                                        <button
-                                            className="folder-preview-btn accept"
-                                            onClick={() => void handleFolderConfirm(true)}
-                                            disabled={isSending}
-                                        >
-                                            생성
-                                        </button>
-                                        <button
-                                            className="folder-preview-btn reject"
-                                            onClick={() => void handleFolderConfirm(false)}
-                                            disabled={isSending}
-                                        >
-                                            취소
-                                        </button>
+                                        <div className="folder-type-selector">
+                                            <button
+                                                className={`folder-type-btn ${folderPreviewType === 'PERSONAL' ? 'active' : ''}`}
+                                                onClick={() => setFolderPreviewType('PERSONAL')}
+                                                disabled={isSending}
+                                            >
+                                                📁 폴더
+                                            </button>
+                                            <button
+                                                className={`folder-type-btn ${folderPreviewType === 'SHARED' ? 'active' : ''}`}
+                                                onClick={() => setFolderPreviewType('SHARED')}
+                                                disabled={isSending}
+                                            >
+                                                🔗 공유폴더
+                                            </button>
+                                        </div>
+                                        <div className="folder-action-buttons">
+                                            <button
+                                                className="folder-preview-btn accept"
+                                                onClick={() => void handleFolderConfirm(true)}
+                                                disabled={isSending}
+                                            >
+                                                생성
+                                            </button>
+                                            <button
+                                                className="folder-preview-btn reject"
+                                                onClick={() => void handleFolderConfirm(false)}
+                                                disabled={isSending}
+                                            >
+                                                취소
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                                </div>
-                            ) : null}
-                            {errorMessage ? <div className="chat-error-text">{errorMessage}</div> : null}
+                            )}
+                            {errorMessage && <div className="chat-error-text">{errorMessage}</div>}
                         </div>
                     ) : (
+                        // ── 편집 탭
                         <div className="edit-view">
+                            {/* 이미지 프리뷰 */}
                             <div
                                 className={`edit-preview-area ${isEditDragOver ? 'drag-over' : ''}`}
                                 onDragOver={handleEditDragOver}
@@ -863,55 +866,61 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                                 )}
                             </div>
 
-                            {/* 편집 탭 전용 채팅 메시지 */}
-                            <div className="chat-view scroll-hide" style={{ maxHeight: '120px', overflowY: 'auto', marginBottom: '8px' }}>
-                                {editMessages.map((message) => (
+                            {/* 대화창 — 스크롤 가능 */}
+                            <div className="edit-chat-view" ref={editChatRef}>
+                                {editMessages.map((m) => (
                                     <div
-                                        key={message.id}
-                                        className={message.role === 'assistant' ? 'msg-bubble-bot' : 'msg-bubble-user'}
+                                        key={m.id}
+                                        className={m.role === 'assistant' ? 'msg-bubble-bot' : 'msg-bubble-user'}
                                     >
-                                        {message.content || '...'}
+                                        {m.content || '...'}
                                     </div>
                                 ))}
                             </div>
 
-                            {errorMessage ? (
-                                <div className="chat-error-text">{errorMessage}</div>
-                            ) : null}
-                            <div className="edit-toolbar">
+                            {errorMessage && <div className="chat-error-text">{errorMessage}</div>}
+
+                            {/* 하단 고정: Undo/Redo + 직접편집 + 저장및종료 */}
+                            <div className="edit-bottom">
+                                <div className="edit-toolbar">
+                                    <button
+                                        className="tool-btn"
+                                        onClick={() => void handleUndo()}
+                                        disabled={isSending || !isEditReady}
+                                        title="실행 취소"
+                                    >
+                                        <Undo size={16} />
+                                    </button>
+                                    <button
+                                        className="tool-btn"
+                                        onClick={() => void handleRedo()}
+                                        disabled={isSending || !isEditReady}
+                                        title="다시 실행"
+                                    >
+                                        <Redo size={16} />
+                                    </button>
+                                    <button
+                                        className="tool-btn direct-edit"
+                                        disabled={!editedImageUrl || !isEditReady}
+                                        title="직접 편집"
+                                    >
+                                        <Edit3 size={14} /> 직접 편집
+                                    </button>
+                                </div>
                                 <button
-                                    className="tool-btn"
-                                    onClick={() => void handleUndo()}
-                                    disabled={isSending || !isEditReady}
+                                    className="save-finish-btn"
+                                    onClick={() => void handleSaveAndExit()}
+                                    disabled={!editedImageUrl || isSaving || !isEditReady}
                                 >
-                                    <Undo size={16} />
-                                </button>
-                                <button
-                                    className="tool-btn"
-                                    onClick={() => void handleRedo()}
-                                    disabled={isSending || !isEditReady}
-                                >
-                                    <Redo size={16} />
-                                </button>
-                                <button
-                                    className="tool-btn direct-edit"
-                                    disabled={!editedImageUrl || !isEditReady}
-                                >
-                                    <Edit3 size={14} /> 직접 편집
+                                    <Save size={16} />
+                                    {isSaving ? '저장 중...' : '저장 및 종료'}
                                 </button>
                             </div>
-                            <button
-                                className="save-finish-btn"
-                                onClick={() => void handleSaveAndExit()}
-                                disabled={!editedImageUrl || isSending || !isEditReady}
-                            >
-                                <Save size={16} /> {isSending ? '처리 중...' : '저장 및 종료'}
-                            </button>
                         </div>
                     )}
                 </div>
 
-                {/* 푸터 */}
+                {/* 푸터 입력창 */}
                 <div className="chatbot-footer">
                     {activeTab === 'search' ? (
                         <div className="search-mode-row" role="group" aria-label="검색 모드 선택">
@@ -941,6 +950,11 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                     <div className="input-field-pill">
                         <input
                             type="text"
+                            className="chat-input"
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={handleInputKeyDown}
+                            disabled={isSending || (activeTab === 'edit' && isEditSessionLoading)}
                             placeholder={
                                 isEditSessionLoading
                                     ? '편집 세션 준비 중...'
@@ -954,11 +968,6 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                                                     ? '예: 여행 사진을 폴더로 묶어줘'
                                                     : '메시지를 입력하세요...'
                             }
-                            className="chat-input"
-                            value={input}
-                            onChange={(event) => setInput(event.target.value)}
-                            onKeyDown={handleInputKeyDown}
-                            disabled={isSending || (activeTab === 'edit' && isEditSessionLoading)}
                         />
                         <button
                             className="chat-send-btn"
@@ -969,7 +978,6 @@ export default function Chatbot({ isOpen, onClose, onOpen, isLoggedIn, selectedP
                         </button>
                     </div>
                 </div>
-
             </div>
         </aside>
     );
