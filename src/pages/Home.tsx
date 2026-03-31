@@ -152,13 +152,14 @@ export default function Home() {
         return '0 B';
     };
 
-    // 저장된 값이 MB일 수 있으므로 바이트로 변환하는 함수
+    // 저장된 값이 일반적인 사진 크기(1~1024MB)인 경우만 변환
     const ensureBytesValue = (value: number): number => {
-        // 만약 값이 매우 작으면 (1MB 미만) MB로 저장된 것으로 가정
-        if (value < 100000) {
+        // 1 ~ 100: MB 단위로 저장된 값으로 가정 (일반 사진 1MB ~ 100MB)
+        if (value > 0 && value <= 100) {
             return value * 1024 * 1024; // MB를 바이트로 변환
         }
-        return value; // 이미 바이트
+        // 그 이상은 이미 바이트 단위
+        return value;
     };
 
     const [isLoggedIn, setIsLoggedIn] = useState<boolean>(isAuthenticated());
