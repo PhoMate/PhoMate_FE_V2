@@ -148,7 +148,17 @@ export default function Home() {
         if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
         if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
         if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
-        return `${bytes} B`;
+        if (bytes >= 1) return `${Math.round(bytes)} B`;
+        return '0 B';
+    };
+
+    // 저장된 값이 MB일 수 있으므로 바이트로 변환하는 함수
+    const ensureBytesValue = (value: number): number => {
+        // 만약 값이 매우 작으면 (1MB 미만) MB로 저장된 것으로 가정
+        if (value < 100000) {
+            return value * 1024 * 1024; // MB를 바이트로 변환
+        }
+        return value; // 이미 바이트
     };
 
     const [isLoggedIn, setIsLoggedIn] = useState<boolean>(isAuthenticated());
@@ -532,7 +542,10 @@ useEffect(() => {
             const next: Record<string, string> = {};
             folders.forEach((folderName) => {
                 const photoIds = folderPhotoIdsByName[folderName] ?? [];
-                const totalBytes = photoIds.reduce((sum, photoId) => sum + (photoSizeBytesById[photoId] ?? 0), 0);
+                const totalBytes = photoIds.reduce((sum, photoId) => {
+                    const sizeValue = photoSizeBytesById[photoId] ?? 0;
+                    return sum + ensureBytesValue(sizeValue);
+                }, 0);
                 next[folderName] = formatBytesToStorageText(totalBytes);
             });
             return { ...prev, ...next };
@@ -544,7 +557,10 @@ useEffect(() => {
             const next: Record<string, string> = {};
             sharedFolders.forEach((folderName) => {
                 const photos = sharedFolderPhotosByName[folderName] ?? [];
-                const totalBytes = photos.reduce((sum, entry) => sum + (photoSizeBytesById[entry.photo.id] ?? 0), 0);
+                const totalBytes = photos.reduce((sum, entry) => {
+                    const sizeValue = photoSizeBytesById[entry.photo.id] ?? 0;
+                    return sum + ensureBytesValue(sizeValue);
+                }, 0);
                 next[folderName] = formatBytesToStorageText(totalBytes);
             });
             return { ...prev, ...next };
@@ -903,7 +919,7 @@ useEffect(() => {
 
     const isChatSearchView = view === 'home' && chatSearchResultPhotos !== null;
     const TOTAL_STORAGE_BYTES = 50 * 1024 * 1024 * 1024;
-    const totalUsedStorageBytes = Object.values(photoSizeBytesById).reduce((sum, size) => sum + size, 0);
+    const totalUsedStorageBytes = Object.values(photoSizeBytesById).reduce((sum, size) => sum + ensureBytesValue(size), 0);
     const remainingStorageBytes = Math.max(TOTAL_STORAGE_BYTES - totalUsedStorageBytes, 0);
     const storagePercent = Math.min((totalUsedStorageBytes / TOTAL_STORAGE_BYTES) * 100, 100);
     const usedStorageText = formatBytesToStorageText(totalUsedStorageBytes);
