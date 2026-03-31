@@ -183,16 +183,88 @@ async function resolveOrCreateSharedFolderId(folderName: string): Promise<number
   return createdId;
 }
 
+async function getSharedFolderInvitationStatus(folderId: number): Promise<{ invited: boolean; folderName: string; inviterEmail?: string }> {
+  console.log('[GetInvitation] Fetching invitation status for folder:', folderId);
+
+  const response = await authFetch(toApiUrl(`/api/folders/${folderId}/members/invitation`), {
+    method: 'GET'
+  });
+
+  console.log('[GetInvitation] Response status:', response.status);
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      return { invited: false, folderName: '' };
+    }
+    throw await buildHttpError(response, '공유 폴더 초대 여부 조회에 실패했습니다.');
+  }
+
+  let parsedBody: unknown = null;
+  try {
+    parsedBody = await response.json();
+    console.log('[GetInvitation] Response body:', parsedBody);
+  } catch (e) {
+    console.log('[GetInvitation] Failed to parse response body:', e);
+    return { invited: false, folderName: '' };
+  }
+
+  if (parsedBody && typeof parsedBody === 'object') {
+    const record = parsedBody as Record<string, unknown>;
+    const data = record.data && typeof record.data === 'object'
+      ? (record.data as Record<string, unknown>)
+      : record;
+
+    return {
+      invited: true,
+      folderName: asText(data.folderName || data.name || ''),
+      inviterEmail: asText(data.inviterEmail || data.senderEmail || '')
+    };
+  }
+
+  return { invited: false, folderName: '' };
+}
+
+async function respondToSharedFolderInvitation(
+  folderId: number,
+  accepted: boolean
+): Promise<void> {
+  const requestPayload = { accepted };
+  console.log('[RespondInvitation] Sending response:', { folderId, accepted });
+
+  const response = await authFetch(toApiUrl(`/api/folders/${folderId}/members/invitation`), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestPayload)
+  });
+
+  console.log('[RespondInvitation] Response status:', response.status);
+
+  if (!response.ok) {
+    if (response.status === 403) {
+      throw new Error('초대에 응답할 권한이 없습니다.');
+    }
+    if (response.status === 404) {
+      throw new Error('초대 정보를 찾을 수 없습니다.');
+    }
+    throw await buildHttpError(response, '초대 응답에 실패했습니다.');
+  }
+}
+
 async function inviteSharedFolderMemberByEmail(
   folderId: number,
   email: string,
   role: SharedFolderRole
 ): Promise<{ memberId: number | null }> {
+  const requestPayload = { email, role };
+  console.log('[Invite] Sending request:', { folderId, email, role });
+  
   const responseByEmail = await authFetch(toApiUrl(`/api/folders/${folderId}/members`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, role })
+    body: JSON.stringify(requestPayload)
   });
+
+  console.log('[Invite] Response status:', responseByEmail.status);
 
   if (!responseByEmail.ok) {
     if (responseByEmail.status === 403) {
@@ -201,10 +273,18 @@ async function inviteSharedFolderMemberByEmail(
     throw await buildHttpError(responseByEmail, '공유 폴더 이메일 초대에 실패했습니다.');
   }
 
+  // 204 No Content는 바디가 없으므로 따로 처리
+  if (responseByEmail.status === 204) {
+    console.log('[Invite] Got 204 No Content - invitation processed');
+    return { memberId: null };
+  }
+
   let parsedBody: unknown = null;
   try {
     parsedBody = await responseByEmail.json();
-  } catch {
+    console.log('[Invite] Response body:', parsedBody);
+  } catch (e) {
+    console.log('[Invite] Failed to parse response body:', e);
     parsedBody = null;
   }
 
@@ -318,6 +398,12 @@ type KnownMember = {
   role: SharedFolderRole;
 };
 
+type InvitationStatus = {
+  invited: boolean;
+  folderName: string;
+  inviterEmail?: string;
+};
+
 export default function SharedFolderModal({
   mode = 'settings',
   folderId,
@@ -340,6 +426,8 @@ export default function SharedFolderModal({
   const [statusMessage, setStatusMessage] = useState('');
   const [isBusy, setIsBusy] = useState(false);
   const [resolvedFolderId, setResolvedFolderId] = useState<number | null>(typeof folderId === 'number' && folderId > 0 ? folderId : null);
+  const [invitationStatus, setInvitationStatus] = useState<InvitationStatus | null>(null);
+  const [isCheckingInvitation, setIsCheckingInvitation] = useState(false);
 
   const normalizeEmail = (value: string): string => normalizeName(value);
   const isValidEmail = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
@@ -377,6 +465,37 @@ export default function SharedFolderModal({
       mounted = false;
     };
   }, [folderId, folderName, mode]);
+
+  // 초대 상태 확인 useEffect
+  useEffect(() => {
+    if (!targetFolderId || targetFolderId <= 0) {
+      setInvitationStatus(null);
+      return;
+    }
+
+    let mounted = true;
+    setIsCheckingInvitation(true);
+    void (async () => {
+      try {
+        const status = await getSharedFolderInvitationStatus(targetFolderId);
+        if (!mounted) return;
+        if (status.invited) {
+          setInvitationStatus(status);
+        }
+      } catch (error) {
+        // 초대 없음 또는 오류 - 무시
+        if (!mounted) return;
+        setInvitationStatus(null);
+      } finally {
+        if (!mounted) return;
+        setIsCheckingInvitation(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [targetFolderId]);
 
   useEffect(() => {
     if (!storageScopedKey || mode !== 'settings') {
@@ -457,6 +576,34 @@ export default function SharedFolderModal({
     await Promise.resolve(onLeave?.());
     setIsLeaveConfirmOpen(false);
     onClose();
+  };
+
+  const handleRespondToInvitation = async (accepted: boolean) => {
+    if (!targetFolderId || targetFolderId <= 0) {
+      setStatusMessage('폴더 ID를 찾을 수 없습니다.');
+      return;
+    }
+
+    setIsBusy(true);
+    setStatusMessage('');
+    try {
+      await respondToSharedFolderInvitation(targetFolderId, accepted);
+      if (accepted) {
+        setStatusMessage('초대를 수락했습니다!');
+        setInvitationStatus(null);
+        // 약간의 딜레이 후 모달 닫기
+        setTimeout(() => onClose(), 1500);
+      } else {
+        setStatusMessage('초대를 거절했습니다.');
+        setInvitationStatus(null);
+        setTimeout(() => onClose(), 1000);
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '응답 처리에 실패했습니다.';
+      setStatusMessage(message);
+    } finally {
+      setIsBusy(false);
+    }
   };
 
   const handleInviteMember = async () => {
@@ -570,122 +717,179 @@ export default function SharedFolderModal({
           <button className="close-icon-btn" onClick={onClose}><X size={20} /></button>
         </div>
 
-        <div className="section-container">
-          <label className="section-label">공유 폴더 이름</label>
-          <div className="invite-input-row">
-            <input
-              type="text"
-              className="modern-input"
-              value={inputName}
-              onChange={(e) => setInputName(e.target.value)}
-              placeholder="공유 폴더 이름"
-            />
+        {/* 초대 알림 섹션 */}
+        {invitationStatus && invitationStatus.invited && (
+          <div className="section-container" style={{ backgroundColor: '#f5f5f5', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+            <div style={{ marginBottom: '12px' }}>
+              <p style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
+                🎉 공유 폴더 초대
+              </p>
+              <p style={{ margin: '0', fontSize: '13px', color: '#666' }}>
+                {invitationStatus.inviterEmail && `${invitationStatus.inviterEmail}님이`} <br/>
+                <strong>{invitationStatus.folderName}</strong> 폴더로 초대했습니다.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => handleRespondToInvitation(true)}
+                disabled={isBusy}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  backgroundColor: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: isBusy ? 'not-allowed' : 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  opacity: isBusy ? 0.6 : 1
+                }}
+              >
+                수락
+              </button>
+              <button
+                onClick={() => handleRespondToInvitation(false)}
+                disabled={isBusy}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  backgroundColor: '#f44336',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: isBusy ? 'not-allowed' : 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  opacity: isBusy ? 0.6 : 1
+                }}
+              >
+                거절
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
-        {mode === 'settings' && (
+        {!invitationStatus?.invited && (
           <>
             <div className="section-container">
-              <label className="section-label">폴더 정보 요약</label>
-              <div className="link-copy-container folder-summary-box">
-                <div className="member-info folder-summary-row">
-                  <div className="info-item">
-                    <ImageIcon size={16} className="summary-icon" />
-                    <span className="summary-text">사진 {photoCount}장</span>
-                  </div>
-                  <div className="summary-divider" />
-                  <div className="info-item">
-                    <Calendar size={16} className="summary-icon" />
-                    <span className="summary-text">{createdAt} 생성</span>
-                  </div>
-                  <div className="summary-divider" />
-                  <div className="info-item">
-                    <HardDrive size={16} className="summary-icon" />
-                    <span className="summary-text">사진 용량 {usedStorage}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="section-container">
-              <label className="section-label">새 멤버 초대</label>
+              <label className="section-label">공유 폴더 이름</label>
               <div className="invite-input-row">
                 <input
-                  type="email"
+                  type="text"
                   className="modern-input"
-                  placeholder="초대할 이메일 입력"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  disabled={isBusy}
+                  value={inputName}
+                  onChange={(e) => setInputName(e.target.value)}
+                  placeholder="공유 폴더 이름"
                 />
-                <select
-                  className="role-dropdown"
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as SharedFolderRole)}
-                  disabled={isBusy}
-                >
-                  <option value="READ">보기 전용</option>
-                  <option value="WRITE">편집 가능</option>
-                  <option value="ADMIN">관리자</option>
-                </select>
-                <button className="icon-action-btn primary" onClick={() => void handleInviteMember()} disabled={isBusy}><UserPlus size={18} /></button>
               </div>
             </div>
 
-            <div className="section-container">
-              <label className="section-label">멤버 권한 변경</label>
-              {knownMembers.length > 0 ? (
-                <>
-                  <div className="shared-member-list">
-                    {knownMembers.map((member) => (
-                      <button
-                        key={member.email}
-                        type="button"
-                        className={`shared-member-chip ${roleTargetEmail === member.email ? 'active' : ''}`}
-                        onClick={() => setRoleTargetEmail(member.email)}
-                      >
-                        <span>{member.email}</span>
-                        <span>{roleText(member.role)}</span>
-                      </button>
-                    ))}
+            {mode === 'settings' && (
+              <>
+                <div className="section-container">
+                  <label className="section-label">폴더 정보 요약</label>
+                  <div className="link-copy-container folder-summary-box">
+                    <div className="member-info folder-summary-row">
+                      <div className="info-item">
+                        <ImageIcon size={16} className="summary-icon" />
+                        <span className="summary-text">사진 {photoCount}장</span>
+                      </div>
+                      <div className="summary-divider" />
+                      <div className="info-item">
+                        <Calendar size={16} className="summary-icon" />
+                        <span className="summary-text">{createdAt} 생성</span>
+                      </div>
+                      <div className="summary-divider" />
+                      <div className="info-item">
+                        <HardDrive size={16} className="summary-icon" />
+                        <span className="summary-text">사진 용량 {usedStorage}</span>
+                      </div>
+                    </div>
                   </div>
+                </div>
+
+                <div className="section-container">
+                  <label className="section-label">새 멤버 초대</label>
                   <div className="invite-input-row">
+                    <input
+                      type="email"
+                      className="modern-input"
+                      placeholder="초대할 이메일 입력"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      disabled={isBusy}
+                    />
                     <select
                       className="role-dropdown"
-                      value={roleTargetEmail}
-                      onChange={(e) => setRoleTargetEmail(e.target.value)}
-                      disabled={isBusy || knownMembers.length === 0}
-                    >
-                      {knownMembers.length === 0 ? (
-                        <option value="">이메일 선택</option>
-                      ) : null}
-                      {knownMembers.map((member) => (
-                        <option key={member.email} value={member.email}>
-                          {member.email}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      className="role-dropdown"
-                      value={roleToUpdate}
-                      onChange={(e) => setRoleToUpdate(e.target.value as SharedFolderRole)}
+                      value={inviteRole}
+                      onChange={(e) => setInviteRole(e.target.value as SharedFolderRole)}
                       disabled={isBusy}
                     >
                       <option value="READ">보기 전용</option>
                       <option value="WRITE">편집 가능</option>
                       <option value="ADMIN">관리자</option>
                     </select>
-                    <button className="icon-action-btn primary" onClick={() => void handleUpdateRole()} disabled={isBusy || !roleTargetEmail}>
-                      <RefreshCw size={18} />
-                    </button>
+                    <button className="icon-action-btn primary" onClick={() => void handleInviteMember()} disabled={isBusy}><UserPlus size={18} /></button>
                   </div>
-                </>
-              ) : (
-                <div className="shared-member-empty">초대 목록이 없습니다. 먼저 이메일로 멤버를 초대하세요.</div>
-              )}
-            </div>
+                </div>
 
-            {statusMessage ? <p className="shared-folder-status-message">{statusMessage}</p> : null}
+                <div className="section-container">
+                  <label className="section-label">멤버 권한 변경</label>
+                  {knownMembers.length > 0 ? (
+                    <>
+                      <div className="shared-member-list">
+                        {knownMembers.map((member) => (
+                          <button
+                            key={member.email}
+                            type="button"
+                            className={`shared-member-chip ${roleTargetEmail === member.email ? 'active' : ''}`}
+                            onClick={() => setRoleTargetEmail(member.email)}
+                          >
+                            <span>{member.email}</span>
+                            <span>{roleText(member.role)}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="invite-input-row">
+                        <select
+                          className="role-dropdown"
+                          value={roleTargetEmail}
+                          onChange={(e) => setRoleTargetEmail(e.target.value)}
+                          disabled={isBusy || knownMembers.length === 0}
+                        >
+                          {knownMembers.length === 0 ? (
+                            <option value="">이메일 선택</option>
+                          ) : null}
+                          {knownMembers.map((member) => (
+                            <option key={member.email} value={member.email}>
+                              {member.email}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          className="role-dropdown"
+                          value={roleToUpdate}
+                          onChange={(e) => setRoleToUpdate(e.target.value as SharedFolderRole)}
+                          disabled={isBusy}
+                        >
+                          <option value="READ">보기 전용</option>
+                          <option value="WRITE">편집 가능</option>
+                          <option value="ADMIN">관리자</option>
+                        </select>
+                        <button className="icon-action-btn primary" onClick={() => void handleUpdateRole()} disabled={isBusy || !roleTargetEmail}>
+                          <RefreshCw size={18} />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="shared-member-empty">초대 목록이 없습니다. 먼저 이메일로 멤버를 초대하세요.</div>
+                  )}
+                </div>
+
+                {statusMessage ? <p className="shared-folder-status-message">{statusMessage}</p> : null}
+              </>
+            )}
           </>
         )}
               
@@ -694,6 +898,7 @@ export default function SharedFolderModal({
           {mode === 'settings' && <button className="quit-btn" onClick={handleLeaveFolder}>폴더 나가기</button>}
           <button className="save-btn" onClick={handleSave}>{mode === 'create' ? '폴더 생성' : '설정 완료'}</button>
         </div>
+
         {isLeaveConfirmOpen && (
           <ActionModal
             config={{
