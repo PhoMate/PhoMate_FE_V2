@@ -76,7 +76,35 @@ const PAGE_SIZE = 30;
 const loadPhotoSizesFromStorage = (): Record<string, number> => {
     try {
         const raw = localStorage.getItem(STORAGE_SIZE_KEY);
-        return raw ? JSON.parse(raw) : {};
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        
+        // 저장된 데이터 정규화: 1-100 범위는 MB, 그 이상은 바이트
+        const normalized: Record<string, number> = {};
+        let isValid = true;
+        
+        Object.entries(parsed).forEach(([key, value]) => {
+            const num = Number(value);
+            // 전체 저장소(50GB)보다 큰 단일 사진은 불가능 - 데이터 손상 감지
+            if (num > 50 * 1024 * 1024 * 1024) {
+                isValid = false;
+                return;
+            }
+            
+            if (num > 0 && num <= 100) {
+                normalized[key] = num * 1024 * 1024; // MB를 바이트로
+            } else {
+                normalized[key] = num; // 이미 바이트
+            }
+        });
+        
+        // 데이터가 손상되었으면 버림
+        if (!isValid) {
+            localStorage.removeItem(STORAGE_SIZE_KEY);
+            return {};
+        }
+        
+        return normalized;
     } catch {
         return {};
     }
@@ -150,16 +178,6 @@ export default function Home() {
         if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
         if (bytes >= 1) return `${Math.round(bytes)} B`;
         return '0 B';
-    };
-
-    // 저장된 값이 일반적인 사진 크기(1~1024MB)인 경우만 변환
-    const ensureBytesValue = (value: number): number => {
-        // 1 ~ 100: MB 단위로 저장된 값으로 가정 (일반 사진 1MB ~ 100MB)
-        if (value > 0 && value <= 100) {
-            return value * 1024 * 1024; // MB를 바이트로 변환
-        }
-        // 그 이상은 이미 바이트 단위
-        return value;
     };
 
     const [isLoggedIn, setIsLoggedIn] = useState<boolean>(isAuthenticated());
@@ -543,10 +561,7 @@ useEffect(() => {
             const next: Record<string, string> = {};
             folders.forEach((folderName) => {
                 const photoIds = folderPhotoIdsByName[folderName] ?? [];
-                const totalBytes = photoIds.reduce((sum, photoId) => {
-                    const sizeValue = photoSizeBytesById[photoId] ?? 0;
-                    return sum + ensureBytesValue(sizeValue);
-                }, 0);
+                const totalBytes = photoIds.reduce((sum, photoId) => sum + (photoSizeBytesById[photoId] ?? 0), 0);
                 next[folderName] = formatBytesToStorageText(totalBytes);
             });
             return { ...prev, ...next };
@@ -558,10 +573,7 @@ useEffect(() => {
             const next: Record<string, string> = {};
             sharedFolders.forEach((folderName) => {
                 const photos = sharedFolderPhotosByName[folderName] ?? [];
-                const totalBytes = photos.reduce((sum, entry) => {
-                    const sizeValue = photoSizeBytesById[entry.photo.id] ?? 0;
-                    return sum + ensureBytesValue(sizeValue);
-                }, 0);
+                const totalBytes = photos.reduce((sum, entry) => sum + (photoSizeBytesById[entry.photo.id] ?? 0), 0);
                 next[folderName] = formatBytesToStorageText(totalBytes);
             });
             return { ...prev, ...next };
@@ -920,7 +932,7 @@ useEffect(() => {
 
     const isChatSearchView = view === 'home' && chatSearchResultPhotos !== null;
     const TOTAL_STORAGE_BYTES = 50 * 1024 * 1024 * 1024;
-    const totalUsedStorageBytes = Object.values(photoSizeBytesById).reduce((sum, size) => sum + ensureBytesValue(size), 0);
+    const totalUsedStorageBytes = Object.values(photoSizeBytesById).reduce((sum, size) => sum + size, 0);
     const remainingStorageBytes = Math.max(TOTAL_STORAGE_BYTES - totalUsedStorageBytes, 0);
     const storagePercent = Math.min((totalUsedStorageBytes / TOTAL_STORAGE_BYTES) * 100, 100);
     const usedStorageText = formatBytesToStorageText(totalUsedStorageBytes);
