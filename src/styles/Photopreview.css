@@ -1,113 +1,176 @@
+/* 오버레이 */
 .preview-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: rgba(255, 255, 255, 0.85); /* 깨끗한 느낌을 위해 밝은 톤 유지 */
-    backdrop-filter: blur(8px);
+    inset: 0;
+    background: rgba(10, 14, 26, 0.92);
+    backdrop-filter: blur(10px);
     display: flex;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
     z-index: 3000;
 }
 
-.preview-content {
-    position: relative;
-    width: 95%;
-    max-width: 1100px; /* 전체 컨테이너 확장 */
+/* 전체 컨테이너 */
+.preview-shell {
     display: flex;
     flex-direction: column;
-    align-items: center;
-}
-
-/* 상단 액션 헤더 */
-.preview-header {
-    width: 100%;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 20px;
-    padding-right: 20px;
-}
-
-.preview-btn {
-    background: none;
-    border: none;
-    font-size: 18px;
-    font-weight: 700;
-    color: #003366;
-    cursor: pointer;
-    transition: opacity 0.2s;
-}
-
-.preview-btn:hover {
-    opacity: 0.6;
-}
-
-.preview-divider {
-    color: #003366;
-    font-weight: 300;
-    opacity: 0.3;
-}
-
-.preview-close-btn {
-    background: none;
-    border: none;
-    color: #333;
-    cursor: pointer;
-    margin-left: 10px;
-    display: flex;
-    align-items: center;
-}
-
-/* 이미지 및 네비게이션 영역 */
-.preview-body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 50px; /* 화살표와 사진 사이 간격 확보 */
-    width: 100%;
-}
-
-.preview-image-container {
-    flex: 1;
-    max-width: 800px; /* 사진 가로 크기 키움 */
-    height: 75vh; /* 화면 높이에 맞춰 세로 크기도 키움 */
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.preview-img {
     width: 100%;
     height: 100%;
-    object-fit: contain; /* 사진 원본 비율 유지 */
+    max-width: 100vw;
+    max-height: 100vh;
+}
+
+/* 상단 바 */
+.preview-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    flex-shrink: 0;
+}
+
+.preview-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.preview-filename {
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.preview-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.preview-topbar-divider {
+    width: 1px;
+    height: 22px;
+    background: rgba(255, 255, 255, 0.15);
+    margin: 0 8px;
+}
+
+.preview-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    border: none;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.preview-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+    color: white;
+}
+
+.preview-icon-btn.liked {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.preview-icon-btn.liked:hover {
+    background: rgba(239, 68, 68, 0.32);
+}
+
+.preview-icon-btn.danger:hover {
+    background: rgba(239, 68, 68, 0.25);
+    color: #ef4444;
+}
+
+/* 이미지 + 네비게이션 영역 */
+.preview-stage {
+    flex: 1;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    min-height: 0;
+    position: relative;
+    padding: 0 70px;
+    overflow: hidden;
+}
+
+/* 이미지 래퍼 */
+.preview-img-wrap {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* 이미지 — 잘리지 않고 비율 유지 */
+.preview-img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 6px;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+    display: block;
 }
 
 /* 네비게이션 화살표 */
-.nav-arrow {
-    background: #003366;
-    color: white;
-    border: none;
-    width: 60px;
-    height: 60px;
+.preview-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
     display: flex;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    transition: all 0.2s ease;
+    transition: background 0.15s, transform 0.15s;
+    flex-shrink: 0;
+    backdrop-filter: blur(4px);
+    z-index: 1;
 }
 
-.nav-arrow:hover {
-    transform: scale(1.1);
-    background: #004a94;
+.preview-nav.left  { left: 14px; }
+.preview-nav.right { right: 14px; }
+
+.preview-nav:hover {
+    background: rgba(255, 255, 255, 0.22);
+    transform: translateY(-50%) scale(1.06);
 }
 
-.nav-arrow:active {
-    transform: scale(0.95);
+.preview-nav:active {
+    transform: translateY(-50%) scale(0.96);
+}
+
+/* 하단 정보 바 */
+.preview-infobar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 12px 24px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.preview-info-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+    font-weight: 500;
 }

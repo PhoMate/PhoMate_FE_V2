@@ -254,87 +254,69 @@ export async function authFetch(input: string | URL, init: RequestInit = {}): Pr
 }
 
 export async function beginGoogleLogin(): Promise<void> {
-    if (!GOOGLE_CLIENT_ID || !GOOGLE_REDIRECT_URI) {
-        throw new Error('VITE_GOOGLE_CLIENT_ID 또는 VITE_GOOGLE_REDIRECT_URI가 설정되지 않았습니다.');
-    }
+    if (!GOOGLE_CLIENT_ID) throw new Error('Google Client ID가 설정되지 않았습니다.');
+    if (!GOOGLE_REDIRECT_URI) throw new Error('Google Redirect URI가 설정되지 않았습니다.');
 
-    const codeVerifier = createCodeVerifier();
-    sessionStorage.setItem(CODE_VERIFIER_KEY, codeVerifier);
+    const verifier = createCodeVerifier();
+    const challenge = await createCodeChallenge(verifier);
+    localStorage.setItem(CODE_VERIFIER_KEY, verifier);
 
-    const codeChallenge = await createCodeChallenge(codeVerifier);
-
-    const query = new URLSearchParams({
+    const params = new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
         redirect_uri: GOOGLE_REDIRECT_URI,
         response_type: 'code',
-        scope: 'openid email profile',
-        code_challenge: codeChallenge,
+        scope: 'openid profile email',
+        code_challenge: challenge,
         code_challenge_method: 'S256',
         access_type: 'offline',
-        prompt: 'consent'
+        prompt: 'consent',
     });
 
-    window.location.assign(`https://accounts.google.com/o/oauth2/v2/auth?${query.toString()}`);
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
 export async function completeGoogleLoginIfNeeded(): Promise<boolean> {
-    if (oauthCallbackPromise) {
-        return oauthCallbackPromise;
-    }
+    if (oauthCallbackPromise) return oauthCallbackPromise;
+
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('code');
+    if (!code) return false;
+
+    // 동일한 code를 중복 처리하지 않도록 방어
+    const inflightCode = localStorage.getItem(OAUTH_INFLIGHT_CODE_KEY);
+    if (inflightCode === code) return false;
+    localStorage.setItem(OAUTH_INFLIGHT_CODE_KEY, code);
 
     oauthCallbackPromise = (async () => {
-    const query = new URLSearchParams(window.location.search);
-    const code = query.get('code');
-    const error = query.get('error');
+        try {
+            const verifier = localStorage.getItem(CODE_VERIFIER_KEY) ?? '';
+            if (!verifier) throw new Error('PKCE 검증자를 찾을 수 없습니다. 다시 로그인해주세요.');
 
-    if (error) {
-        throw new Error(`구글 로그인 오류: ${error}`);
-    }
+            const result = await googleLogin({
+                code,
+                redirectUri: GOOGLE_REDIRECT_URI,
+                codeVerifier: verifier,
+            });
 
-    if (!code) {
-        return false;
-    }
+            setAuthTokens(result.accessToken, result.refreshToken);
+            localStorage.removeItem(CODE_VERIFIER_KEY);
+            localStorage.removeItem(OAUTH_INFLIGHT_CODE_KEY);
 
-    const inflightCode = sessionStorage.getItem(OAUTH_INFLIGHT_CODE_KEY);
-    if (inflightCode === code) {
-        const nextUrl = `${window.location.origin}/`;
-        window.history.replaceState({}, document.title, nextUrl);
-        return isAuthenticated();
-    }
+            // URL에서 OAuth 파라미터 제거 (페이지 새로고침 없이)
+            url.searchParams.delete('code');
+            url.searchParams.delete('scope');
+            url.searchParams.delete('authuser');
+            url.searchParams.delete('prompt');
+            window.history.replaceState({}, '', url.toString());
 
-    const redirectUri = GOOGLE_REDIRECT_URI || `${window.location.origin}${window.location.pathname}`;
-    const codeVerifier = sessionStorage.getItem(CODE_VERIFIER_KEY) ?? '';
-
-    if (!codeVerifier) {
-        throw new Error('로그인 세션 정보(codeVerifier)가 없습니다. 로그인 버튼부터 다시 시작해주세요.');
-    }
-
-    sessionStorage.setItem(OAUTH_INFLIGHT_CODE_KEY, code);
-
-    try {
-        const result = await googleLogin({
-            code,
-            redirectUri,
-            codeVerifier
-        });
-
-        setAuthTokens(result.accessToken, result.refreshToken);
-        sessionStorage.removeItem(CODE_VERIFIER_KEY);
-        sessionStorage.removeItem(OAUTH_INFLIGHT_CODE_KEY);
-
-        const nextUrl = `${window.location.origin}/`;
-        window.history.replaceState({}, document.title, nextUrl);
-
-        return true;
-    } catch (error) {
-        sessionStorage.removeItem(OAUTH_INFLIGHT_CODE_KEY);
-        throw error;
-    }
+            return true;
+        } catch (error) {
+            localStorage.removeItem(OAUTH_INFLIGHT_CODE_KEY);
+            throw error;
+        } finally {
+            oauthCallbackPromise = null;
+        }
     })();
 
-    try {
-        return await oauthCallbackPromise;
-    } finally {
-        oauthCallbackPromise = null;
-    }
+    return oauthCallbackPromise;
 }

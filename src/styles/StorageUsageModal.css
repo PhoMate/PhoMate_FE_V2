@@ -1,171 +1,175 @@
+/* StorageUsageModal.css */
 .storage-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(15, 23, 42, 0.4);
-  backdrop-filter: blur(4px);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(6px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
 }
 
 .storage-modal-card {
-  width: 460px;
-  max-height: 80vh;
-  overflow-y: auto;
-  background: #ffffff;
-  border-radius: 24px;
-  padding: 24px;
-  box-shadow: 0 20px 60px -12px rgba(0, 0, 0, 0.2);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+    width: 460px;
+    max-height: 80vh;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 24px;
+    padding: 24px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
 }
 
 .storage-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .storage-modal-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 800;
-  color: #1e293b;
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
 }
 
 .storage-close-btn {
-  border: none;
-  background: transparent;
-  color: #94a3b8;
-  cursor: pointer;
-  padding: 4px;
+    border: none;
+    background: #f1f5f9;
+    color: #64748b;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    transition: background 0.15s, color 0.15s;
 }
 
 .storage-close-btn:hover {
-  color: #1e293b;
+    background: #e2e8f0;
+    color: #1e293b;
 }
 
 .storage-summary {
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 12px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 12px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    background: #f8fafc;
 }
 
 .storage-summary-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  border-radius: 10px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px;
+    border-radius: 10px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
 }
 
 .storage-summary-label {
-  font-size: 12px;
-  color: #64748b;
-  font-weight: 600;
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 .storage-summary-value {
-  font-size: 14px;
-  color: #0f172a;
-  font-weight: 800;
+    font-size: 14px;
+    color: #0f172a;
+    font-weight: 800;
 }
 
 .storage-section {
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 14px;
 }
 
 .storage-section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #334155;
-  font-weight: 700;
-  margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 700;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .storage-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .storage-list-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  background: #f8fafc;
-  border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    background: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid #f1f5f9;
 }
 
 .storage-folder-name {
-  font-size: 13px;
-  color: #334155;
-  font-weight: 600;
+    font-size: 13px;
+    color: #334155;
+    font-weight: 600;
 }
 
 .storage-folder-value {
-  font-size: 13px;
-  color: #0f172a;
-  font-weight: 700;
+    font-size: 13px;
+    color: #64748b;
+    font-weight: 600;
 }
 
 .storage-empty-text {
-  margin: 0;
-  font-size: 13px;
-  color: #94a3b8;
+    margin: 0;
+    font-size: 13px;
+    color: #94a3b8;
 }
 
-@media (max-width: 560px) {
-  .storage-modal-card {
-    width: min(460px, 94vw);
-  }
-
-  .storage-summary {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* StorageUsageModal.css에 추가 */
 .storage-progress-wrapper {
-    padding: 0 24px 16px;
+    padding: 0 4px 4px;
 }
 
 .storage-progress-bar {
-    height: 8px;
-    background: #E2E8F0;
-    border-radius: 4px;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 999px;
     overflow: hidden;
     margin-bottom: 6px;
 }
 
 .storage-progress-fill {
     height: 100%;
-    background: #003366;
-    border-radius: 4px;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    border-radius: 999px;
     transition: width 0.3s ease;
     min-width: 2px;
 }
 
 .storage-progress-label {
     font-size: 12px;
-    color: #64748B;
+    color: #64748b;
+}
+
+@media (max-width: 560px) {
+    .storage-modal-card { width: min(460px, 94vw); }
+    .storage-summary { grid-template-columns: 1fr; }
 }

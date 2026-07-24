@@ -1,65 +1,69 @@
-/* 알림 패널 (우측 상단) */
+/* 알림 패널 */
 .noti-panel {
     position: absolute;
-    top: 20px;
-    right: 20px;
-    width: 280px;
-    background: white;
+    top: 16px;
+    right: 16px;
+    width: 300px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
     border-radius: 20px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-    padding: 20px;
-    z-index: 1000;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+    z-index: 3000;
 }
 
 .noti-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 14px;
     font-weight: 700;
-    color: #003366; /* 헤더 텍스트 네이비로 변경 */
+    font-size: 14px;
+    color: #0f172a;
 }
 
-/* 알림창 X 버튼 스타일 수정 */
 .noti-close-x {
-    background: none;
+    background: #f1f5f9;
     border: none;
     cursor: pointer;
-    color: #9ca3af;
+    color: #64748b;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
-    padding: 2px;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    transition: background 0.15s, color 0.15s;
+    padding: 0;
 }
 
 .noti-close-x:hover {
-    color: #003366; /* 호버 시 네이비 */
-    transform: scale(1.1);
+    background: #e2e8f0;
+    color: #1e293b;
 }
 
 .noti-item {
     width: 100%;
-    background: #ffffff;
-    border: 1px solid #eee;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
     text-align: left;
     display: flex;
-    padding: 12px;
+    padding: 11px 12px;
     border-radius: 12px;
     cursor: pointer;
-    color: #333;
+    color: #334155;
+    margin-bottom: 6px;
+    transition: background 0.15s;
 }
 
-.noti-item:hover { background: #f9f9f9; }
+.noti-item:hover { background: #f1f5f9; }
 
 .noti-item.unread {
-    border-color: #cbd5e1;
-    background: #f8fbff;
+    border-color: #bfdbfe;
+    background: #eff6ff;
 }
 
-.noti-item-body {
-    width: 100%;
-}
+.noti-item-body { width: 100%; }
 
 .noti-item-title-row {
     display: flex;
@@ -76,7 +80,7 @@
 }
 
 .noti-item-message {
-    margin: 6px 0 0;
+    margin: 5px 0 0;
     font-size: 12px;
     line-height: 1.5;
     color: #475569;
@@ -95,14 +99,15 @@
 }
 
 .noti-unread-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 999px;
-    background: #2563eb;
+    background: #3b82f6;
+    flex-shrink: 0;
 }
 
 .noti-empty {
-    border: 1px dashed #cbd5e1;
+    border: 1px dashed #e2e8f0;
     border-radius: 14px;
     padding: 18px 16px;
     text-align: center;
@@ -125,13 +130,17 @@
 
 .noti-upload-section {
     margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #f1f5f9;
 }
 
 .noti-upload-title {
     margin: 0 0 8px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
-    color: #003366;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 
 .upload-summary-text {
@@ -145,13 +154,14 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
 }
 
 .upload-item-row {
     border: 1px solid #e2e8f0;
+    background: #f8fafc;
     border-radius: 10px;
-    padding: 8px;
+    padding: 8px 10px;
 }
 
 .upload-item-title-row {
@@ -167,102 +177,109 @@
     color: #334155;
 }
 
-.upload-item-status.done {
-    color: #15803d;
-}
-
-.upload-item-status.error {
-    color: #b91c1c;
-}
+.upload-item-status.done { color: #15803d; }
+.upload-item-status.error { color: #dc2626; }
 
 .upload-error-text {
     margin: 4px 0 0;
-    color: #b91c1c;
+    color: #dc2626;
     font-size: 11px;
 }
 
 .upload-progress-container {
     width: 100%;
-    height: 6px;
+    height: 4px;
     background: #e2e8f0;
     border-radius: 999px;
     overflow: hidden;
-    margin-top: 8px;
+    margin-top: 7px;
 }
 
 .upload-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #2563eb, #0f766e);
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
     border-radius: 999px;
     transition: width 0.2s ease;
 }
-/* 초대 모달 (중앙) */
+
+/* 초대 모달 */
 .modal-overlay {
     position: fixed;
     top: 0; left: 0; width: 100vw; height: 100vh;
-    background: rgba(0, 0, 0, 0.15); /* 배경 가독성 위해 약간 어둡게 */
-    backdrop-filter: blur(4px); /* 뒷배경 블러 추가 */
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(6px);
     display: flex; justify-content: center; align-items: center;
     z-index: 5000;
 }
 
 .invite-modal {
     width: 400px;
-    height: 250px;
-    background: white;
-    border-radius: 30px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 24px;
     position: relative;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    padding: 36px 28px;
 }
 
-/* 초대 모달 X 버튼 스타일 수정 */
 .modal-top-close {
     position: absolute;
-    top: 20px; 
-    right: 25px;
-    background: #f1f5f9; /* 배경색이 있는 원형 버튼 스타일 */
-    border: none; 
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex; 
-    align-items: center; 
+    top: 18px;
+    right: 20px;
+    background: #f1f5f9;
+    border: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
     justify-content: center;
-    cursor: pointer; 
+    cursor: pointer;
     color: #64748b;
-    transition: all 0.2s ease;
+    transition: background 0.15s, color 0.15s;
 }
 
 .modal-top-close:hover {
     background: #e2e8f0;
-    color: #003366;
-    transform: rotate(90deg); /* 호버 시 회전 애니메이션 */
+    color: #1e293b;
 }
 
 .invite-modal-content { text-align: center; }
-.invite-modal-content h2 { 
-    font-size: 22px; 
-    line-height: 1.4; 
-    color: #333; 
-    margin-bottom: 30px; 
+
+.invite-modal-content h2 {
+    font-size: 20px;
+    line-height: 1.4;
+    color: #0f172a;
+    margin-bottom: 28px;
+    font-weight: 700;
 }
 
 .invite-actions {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 20px;
+    gap: 12px;
 }
 
 .invite-actions button {
-    background: none; border: none;
-    font-size: 16px; font-weight: 700; /* 수락/거절 더 선명하게 */
-    color: #003366; /* 버튼도 네이비로 변경 */
+    background: none;
+    border: none;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1d4ed8;
     cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 10px;
+    transition: background 0.15s;
 }
 
-.invite-actions .divider { color: #ddd; font-weight: 300; }
+.invite-actions button:hover { background: #eef3ff; }
+
+.invite-actions .divider {
+    color: #e2e8f0;
+    font-weight: 300;
+}

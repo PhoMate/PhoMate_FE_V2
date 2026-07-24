@@ -4,20 +4,20 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 30px;
+    padding: 0 28px;
     height: 60px;
     background-color: #ffffff;
     border-bottom: 1px solid #e5e7eb;
     position: fixed;
     top: 0;
     width: 100%;
-    z-index: 2000; /* 모달보다 높지 않게, 콘텐츠보다는 높게 */
+    z-index: 2000;
 }
 
-.nav-left {
+.navbar .nav-left {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 10px;
     font-size: 14px;
     color: #333;
 }
@@ -62,10 +62,10 @@
 }
 
 .nav-center .logo-text {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 900;
-    color: #003366; /* 메인 네이비 컬러 */
-    letter-spacing: 1px;
+    color: #0f172a;
+    letter-spacing: 1.5px;
     cursor: pointer;
 }
 
@@ -95,19 +95,19 @@
 
 .noti-badge {
     position: absolute;
-    top: -6px;
-    right: -6px;
-    background-color: #003366;
+    top: -5px;
+    right: -5px;
+    background: #3b82f6;
     color: white;
     font-size: 10px;
     font-weight: 700;
-    width: 18px;
-    height: 18px;
+    width: 17px;
+    height: 17px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid #ffffff; /* 흰색 테두리로 배지 강조 */
+    border: 2px solid #ffffff;
 }
 
 /* 업로드 버튼 스타일 */
@@ -115,9 +115,18 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
-    color: #003366;
+    color: #1e3a6e;
+    background: #eef3ff;
+    border: 1px solid #c7d7f5;
+    padding: 7px 14px;
+    border-radius: 10px;
+    transition: background 0.15s;
+}
+
+.upload-btn:hover {
+    background: #dde9ff;
 }
 
 .clickable {
@@ -127,4 +136,26 @@
 
 .clickable:hover {
     opacity: 0.6;
+}
+
+.navbar-login-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+}
+
+.navbar-login-btn:hover {
+    background: #f8fafc;
+    border-color: #93c5fd;
+    box-shadow: 0 1px 4px rgba(59, 130, 246, 0.15);
 }

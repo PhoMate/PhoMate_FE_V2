@@ -1,90 +1,158 @@
-/* 1. 부모 컨테이너: 여기가 핵심입니다! */
+/* 그리드 컨테이너 — 핀터레스트 masonry */
 .photo-grid-container {
-    display: grid;
-    /* 화면 너비에 따라 자동으로 카드를 배치 (최소 200px ~ 최대 1fr) */
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 20px;
-    padding: 20px;
+    columns: 4;
+    column-gap: 10px;
+    padding: 4px;
     width: 100%;
     box-sizing: border-box;
 }
 
-/* 2. 개별 카드 스타일 */
+/* 카드 */
 .photo-card {
-    border-radius: 20px;
+    border-radius: 16px;
     overflow: hidden;
-    background: #ffffff;
+    background: #111827;
     cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    display: flex;
-    flex-direction: column;
     position: relative;
-}
-
-.photo-card.selected { 
-    border: 3px solid #003366; 
+    break-inside: avoid;
+    margin-bottom: 10px;
+    transition: box-shadow 0.25s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .photo-card:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
+.photo-card.selected {
+    outline: 3px solid #3b82f6;
+    outline-offset: -3px;
+}
+
+/* 이미지 영역 — 자연 비율 그대로 */
 .photo-card-image {
     width: 100%;
-    aspect-ratio: 1 / 1; 
     position: relative;
     overflow: hidden;
-    background: #f8f9fa;
+    background: #111827;
 }
 
 .photo-card-image img {
     width: 100%;
-    height: 100%;
-    object-fit: cover; /* 이미지가 찌그러지지 않게 꽉 채움 */
-    transition: transform 0.5s ease;
+    height: auto;
     display: block;
+    transition: transform 0.4s ease;
 }
 
 .photo-card:hover .photo-card-image img {
-    transform: scale(1.05);
+    transform: scale(1.04);
 }
 
-.photo-card-info {
-    padding: 12px 15px;
+/* hover 그라디언트 오버레이 */
+.photo-card-image::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.45) 0%,
+        rgba(0, 0, 0, 0.1) 40%,
+        transparent 70%
+    );
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    border-radius: 0;
+    pointer-events: none;
 }
 
-.photo-card-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #1f2937;
-    margin: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.photo-card:hover .photo-card-image::after {
+    opacity: 1;
 }
 
-/* 3. 선택 모드 레이어 */
+/* 하트(좋아요) 버튼 */
+.photo-like-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.32);
+    backdrop-filter: blur(4px);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s;
+    z-index: 3;
+}
+
+.photo-card:hover .photo-like-btn {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.photo-like-btn svg {
+    fill: none;
+    stroke: white;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    transition: fill 0.15s, stroke 0.15s;
+}
+
+.photo-like-btn.liked {
+    opacity: 1;
+    transform: scale(1);
+    background: rgba(239, 68, 68, 0.3);
+}
+
+.photo-like-btn.liked svg {
+    fill: #ef4444;
+    stroke: #ef4444;
+}
+
+.photo-like-btn:hover {
+    background: rgba(239, 68, 68, 0.5) !important;
+    transform: scale(1.1) !important;
+}
+
+.photo-like-btn:hover svg {
+    fill: white;
+    stroke: white;
+}
+
+/* 선택 모드 오버레이 */
 .select-overlay {
     position: absolute;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.1);
-    display: flex; justify-content: flex-end; padding: 10px;
+    inset: 0;
+    display: flex;
+    justify-content: flex-end;
+    padding: 10px;
     box-sizing: border-box;
+    background: transparent;
+    z-index: 2;
 }
 
-.select-overlay.active { background: rgba(0, 51, 102, 0.2); }
+.select-overlay.active {
+    background: rgba(59, 130, 246, 0.15);
+}
 
 .check-circle {
-    width: 24px; height: 24px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
-    border: 2px solid white;
-    background: rgba(255, 255, 255, 0.3);
-    display: flex; align-items: center; justify-content: center;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
 }
 
 .select-overlay.active .check-circle {
-    background: #003366;
-    border-color: #003366;
+    background: #3b82f6;
+    border-color: #3b82f6;
 }

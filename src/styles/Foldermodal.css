@@ -1,81 +1,84 @@
 /* --- FolderModal.css --- */
 
-/* 모달 배경 오버레이 */
 .modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(15, 23, 42, 0.4);
-    backdrop-filter: blur(4px); /* 배경 블러 효과 */
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(6px);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 9999;
 }
 
-/* 모달 카드 메인 박스 */
 .shared-modal-card {
     width: 480px;
     background: #ffffff;
-    border-radius: 32px; /* 둥근 모서리 아이덴티티 */
-    padding: 32px;
-    box-shadow: 0 20px 60px -12px rgba(0, 0, 0, 0.2);
+    border-radius: 24px;
+    padding: 28px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.14);
     display: flex;
     flex-direction: column;
+    border: 1px solid #e5e7eb;
 }
 
-/* 헤더 영역 */
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 20px;
+    margin-bottom: 22px;
 }
 
 .modal-title {
-    font-size: 20px;
-    font-weight: 800;
-    color: #1e293b;
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
     margin: 0;
 }
 
-/* 닫기 버튼 */
 .close-icon-btn {
-    background: transparent;
+    background: #f1f5f9;
     border: none;
-    color: #94a3b8;
-    padding: 4px;
+    color: #64748b;
+    padding: 6px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: color 0.2s;
+    transition: background 0.15s, color 0.15s;
+    display: flex;
+    align-items: center;
 }
 
 .close-icon-btn:hover {
+    background: #e2e8f0;
     color: #1e293b;
 }
 
-/* 섹션 공통 컨테이너 */
-.section-container {
-    margin-bottom: 24px;
-}
+.section-container { margin-bottom: 20px; }
 
 .section-label {
     display: block;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     margin-bottom: 10px;
 }
 
-/* 입력창 행 스타일 */
 .invite-input-row {
     display: flex;
-    gap: 12px;
-    padding: 4px 4px 4px 16px;
-    border-radius: 16px;
+    gap: 10px;
+    padding: 4px 4px 4px 14px;
+    border-radius: 14px;
     align-items: center;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
     transition: border-color 0.2s;
+}
+
+.invite-input-row:focus-within {
+    border-color: #93c5fd;
 }
 
 .modern-input {
@@ -88,125 +91,113 @@
     padding: 10px 0;
 }
 
-/* 변경 버튼 */
+.modern-input::placeholder { color: #94a3b8; }
+
 .copy-btn {
-    background: #003366; /* 브랜드 진남색 */
+    background: #3b82f6;
     color: white;
     border: none;
-    border-radius: 12px;
-    padding: 10px 16px;
+    border-radius: 10px;
+    padding: 9px 16px;
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
-    transition: opacity 0.2s;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
 }
 
-.copy-btn:hover {
-    opacity: 0.9;
-}
+.copy-btn:hover { opacity: 0.88; }
 
-/* 정보 요약 카드 디자인 */
 .link-copy-container {
     display: flex;
     align-items: center;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 16px;
+    border-radius: 14px;
+    padding: 14px;
 }
 
-.info-item {
-    color: #1e293b;
-}
+.info-item { color: #334155; font-size: 13px; }
+.text-blue-900 { color: #1d4ed8; }
 
-.text-blue-900 {
-    color: #003366;
-}
-
-/* 관리 옵션 (삭제 영역) */
-.member-list-area {
-    margin-bottom: 12px;
-}
+.member-list-area { margin-bottom: 12px; }
 
 .member-item-card {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 14px 16px;
-    border-radius: 16px;
-    background: #fff;
-    transition: all 0.2s;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    margin-bottom: 6px;
+    transition: background 0.15s;
 }
 
-.member-info {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-}
+.member-item-card:hover { background: #f1f5f9; }
+
+.member-info { display: flex; align-items: center; gap: 12px; }
 
 .member-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 12px;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-.member-text {
-    display: flex;
-    flex-direction: column;
-}
-
-.name {
-    font-size: 14px;
+    background: linear-gradient(135deg, #1e3a6e, #3b82f6);
+    color: white;
     font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
 }
 
-.email {
-    font-size: 11px;
-    color: #94a3b8;
-}
+.member-text { display: flex; flex-direction: column; }
 
-/* 하단 설정 완료 버튼 */
-.modal-footer {
-    display: flex;
-}
+.name { font-size: 13px; font-weight: 700; color: #1e293b; }
+.email { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+.modal-footer { display: flex; margin-top: 4px; }
 
 .save-btn {
-    background: #003366;
+    flex: 1;
+    background: linear-gradient(135deg, #1e3a6e, #3b82f6);
     color: white;
     border: none;
-    border-radius: 16px;
-    padding: 16px;
+    border-radius: 14px;
+    padding: 14px;
     font-weight: 700;
-    font-size: 15px;
+    font-size: 14px;
     cursor: pointer;
-    transition: transform 0.1s;
+    transition: opacity 0.15s;
 }
 
-.save-btn:active {
-    transform: scale(0.98);
-}
+.save-btn:hover { opacity: 0.9; }
+.save-btn:active { opacity: 0.8; }
 
 .folder-delete-card {
-    padding: 14px 16px 14px 22px;
-    border-radius: 16px;
-    border-bottom: none;
+    padding: 12px 14px 12px 20px;
+    border-radius: 12px;
+    border: 1px solid #fee2e2;
+    background: #fff5f5;
+    margin-bottom: 6px;
 }
 
 .folder-delete-card .member-info {
     align-items: center;
-    padding-left: 12px;
+    padding-left: 8px;
     gap: 12px;
 }
 
 .folder-delete-avatar {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: #fee2e2;
+    color: #ef4444;
+    font-size: 16px;
 }

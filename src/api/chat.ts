@@ -617,6 +617,7 @@ async function consumeSearchStreamResponse(
             }
         }
     } catch (error) {
+        // HTTP/2 오류가 발생해도 이미 받은 데이터가 있으면 계속 처리
         if (!emittedAnyDelta) {
             throw error;
         }
@@ -692,6 +693,7 @@ async function consumeTextStreamResponse(
             }
         }
     } catch (error) {
+        // HTTP/2 오류가 발생해도 이미 받은 데이터가 있으면 계속 처리
         if (!emittedAnyDelta) {
             throw error;
         }

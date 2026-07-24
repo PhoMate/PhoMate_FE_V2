@@ -26,9 +26,9 @@ body, #root {
     border-bottom: 1px solid #e5e7eb;
 }
 
-.nav-left { color: #003366; font-weight: 700; font-size: 14px; }
+.nav-left { display: flex; align-items: center; gap: 10px; color: #003366; font-weight: 700; font-size: 14px; }
 .nav-center .logo-text { color: #003366; font-size: 24px; font-weight: 900; letter-spacing: 1px; }
-.nav-right { display: flex; align-items: center; gap: 20px; color: #003366; font-weight: 700; }
+.nav-right { display: flex; align-items: center; gap: 16px; }
 
 .notification { position: relative; cursor: pointer; }
 .badge {

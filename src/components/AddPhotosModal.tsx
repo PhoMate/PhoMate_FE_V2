@@ -1,5 +1,5 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { X, Check, Lock } from 'lucide-react';
 import { Photo } from '../types';
 import '../styles/AddPhotosModal.css';
 
@@ -48,14 +48,21 @@ export default function AddPhotosModal({
                                     <button
                                         key={photo.id}
                                         type="button"
-                                        className={`add-photo-item ${isSelected ? 'selected' : ''}`}
+                                        className={`add-photo-item ${isSelected ? 'selected' : ''} ${isAlreadyIncluded ? 'included' : ''}`}
                                         onClick={() => onToggle(photo.id)}
                                         disabled={isAlreadyIncluded}
                                     >
                                         <img src={photo.thumbnailUrl} alt="추가할 사진" />
-                                        <div className="add-photo-item-footer">
-                                            {isAlreadyIncluded ? '이미 추가됨' : (isSelected ? '선택됨' : '선택')}
-                                        </div>
+                                        {isAlreadyIncluded && (
+                                            <div className="add-photo-badge add-photo-badge-lock">
+                                                <Lock size={11} strokeWidth={2.5} />
+                                            </div>
+                                        )}
+                                        {isSelected && (
+                                            <div className="add-photo-badge add-photo-badge-check">
+                                                <Check size={13} strokeWidth={3} />
+                                            </div>
+                                        )}
                                     </button>
                                 );
                             })}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Edit3, Undo, Redo, Save } from 'lucide-react';
+import { X, Edit3, Undo, Redo, Save, Search, Wand2 } from 'lucide-react';
 import {
     type ChatFolderPreviewPhoto,
     type SearchResultItem,
@@ -28,6 +28,7 @@ type ChatMessage = {
     id: string;
     role: ChatRole;
     content: string;
+    imageUrl?: string;
 };
 
 type FolderPreviewState = {
@@ -93,8 +94,9 @@ export default function Chatbot({
     const [errorMessage, setErrorMessage] = useState('');
     const [folderPreview, setFolderPreview] = useState<FolderPreviewState | null>(null);
     const [folderPreviewType, setFolderPreviewType] = useState<'PERSONAL' | 'SHARED'>('PERSONAL');
-    const [searchMode, setSearchMode] = useState<SearchMode>('auto');
-    const [isEditDragOver, setIsEditDragOver] = useState(false);
+    const searchMode: SearchMode = 'auto';
+    const [isDragOver, setIsDragOver] = useState(false);
+    const [dragSide, setDragSide] = useState<'search' | 'edit'>('search');
 
     const bodyRef = useRef<HTMLDivElement | null>(null);
     const editChatRef = useRef<HTMLDivElement | null>(null);
@@ -140,6 +142,13 @@ export default function Chatbot({
         setActiveTab(tab);
         setErrorMessage('');
     };
+
+    // selectedPhotoId가 주어지면 자동으로 편집 모드로 전환
+    useEffect(() => {
+        if (selectedPhotoId) {
+            handleTabChange('edit');
+        }
+    }, [selectedPhotoId]);
 
     // 채팅 세션 초기화
     useEffect(() => {
@@ -244,6 +253,12 @@ export default function Chatbot({
     const appendSearchMessage = (role: ChatRole, content: string): string => {
         const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
         setSearchMessages((prev) => [...prev, { id, role, content }]);
+        return id;
+    };
+
+    const appendSearchMessageWithImage = (role: ChatRole, content: string, imageUrl: string): string => {
+        const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        setSearchMessages((prev) => [...prev, { id, role, content, imageUrl }]);
         return id;
     };
 
@@ -436,9 +451,7 @@ export default function Chatbot({
 
                 const currentSessionId = await ensureSessionId();
 
-                const shouldOrganize =
-                    searchMode === 'organize' ||
-                    (searchMode === 'auto' && isFolderOrganizeIntent(trimmed));
+                const shouldOrganize = isFolderOrganizeIntent(trimmed);
 
                 if (shouldOrganize) {
                     const preview = await previewAutoFolder({ chatSessionId: currentSessionId, userText: trimmed, topK: 20 });
@@ -471,7 +484,7 @@ export default function Chatbot({
                     updateSearchMessage(assistantMessageId, streamedText);
                 };
 
-                if (searchMode === 'search' || searchMode === 'auto') {
+                {
                     const searchCandidates = buildSearchCandidates(trimmed);
                     let hasResultItems = false;
                     try {
@@ -528,13 +541,6 @@ export default function Chatbot({
                             onError: (code) => { setErrorMessage(`스트리밍 오류: ${code}`); }
                         });
                     }
-                } else {
-                    await streamTextChat({
-                        sessionId: currentSessionId,
-                        message: trimmed,
-                        onDelta: handleDelta,
-                        onError: (code) => { setErrorMessage(`스트리밍 오류: ${code}`); }
-                    });
                 }
 
                 if (!streamedText) updateSearchMessage(assistantMessageId, '응답이 비어 있습니다.');
@@ -689,50 +695,89 @@ export default function Chatbot({
         }
     };
 
-    const handleEditDrop = (event: React.DragEvent<HTMLDivElement>) => {
-        event.preventDefault();
-        event.stopPropagation();
-        setIsEditDragOver(false);
+    const handleImageSearch = (url: string) => {
+        setActiveTab('search');
+        appendSearchMessageWithImage('user', '이 사진으로 검색', url);
 
-        const files = Array.from(event.dataTransfer.files);
-        const imageFile = files.find((f) => f.type.startsWith('image/'));
-        if (imageFile) { applyDroppedEditImage(imageFile); return; }
-
-        const fromItems = Array.from(event.dataTransfer.items || [])
-            .map((i) => i.getAsFile())
-            .find((f): f is File => !!f && f.type.startsWith('image/'));
-        if (fromItems) { applyDroppedEditImage(fromItems); return; }
-
-        const uriList = event.dataTransfer.getData('text/uri-list');
-        if (uriList) {
-            const firstUrl = uriList.split(/\r?\n/).map((l) => l.trim()).find((l) => !!l && !l.startsWith('#'));
-            if (firstUrl) { applyDroppedEditUrl(firstUrl); return; }
+        if (isGuestChatMode) {
+            const id = appendSearchMessage('assistant', '');
+            void streamDemoAssistantMessage(id);
+            return;
+        }
+        if (!isLoggedIn) {
+            appendSearchMessage('assistant', '로그인 후 이미지 검색을 사용할 수 있습니다.');
+            return;
         }
 
-        const plainText = event.dataTransfer.getData('text/plain');
-        if (plainText) { applyDroppedEditUrl(plainText); return; }
-
-        setErrorMessage('드롭된 파일을 읽지 못했습니다.');
+        const assistantId = appendSearchMessage('assistant', '');
+        void (async () => {
+            try {
+                const currentSessionId = await ensureSessionId();
+                let streamedText = '';
+                await streamSearchChat({
+                    sessionId: currentSessionId,
+                    message: `이 이미지와 비슷한 사진을 찾아줘: ${url}`,
+                    onDelta: (delta) => { streamedText += delta; updateSearchMessage(assistantId, streamedText); },
+                    onResults: (items) => {
+                        const mapped = mapSearchItemsToPhotos(items, '이미지 검색');
+                        if (mapped.length > 0) onSearchResults?.({ query: '이미지 검색', photos: mapped });
+                    },
+                });
+                if (!streamedText.trim()) updateSearchMessage(assistantId, '이미지 기반 검색 결과를 불러오지 못했습니다.');
+            } catch {
+                updateSearchMessage(assistantId, '이미지 검색 중 오류가 발생했습니다.');
+            }
+        })();
     };
 
-    const handleEditDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    const handleBodyDragOver = (event: React.DragEvent<HTMLDivElement>) => {
         event.preventDefault();
-        event.stopPropagation();
-        if (!isEditDragOver) setIsEditDragOver(true);
+        if (!isDragOver) setIsDragOver(true);
+        const rect = event.currentTarget.getBoundingClientRect();
+        const newSide: 'search' | 'edit' = event.clientY < rect.top + rect.height / 2 ? 'search' : 'edit';
+        if (newSide !== dragSide) setDragSide(newSide);
     };
 
-    const handleEditDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
-        event.preventDefault();
-        event.stopPropagation();
-        setIsEditDragOver(true);
-    };
-
-    const handleEditDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
-        event.preventDefault();
-        event.stopPropagation();
+    const handleBodyDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
         const related = event.relatedTarget as HTMLElement | null;
         if (related && event.currentTarget.contains(related)) return;
-        setIsEditDragOver(false);
+        setIsDragOver(false);
+    };
+
+    const handleBodyDrop = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        setIsDragOver(false);
+
+        const rect = event.currentTarget.getBoundingClientRect();
+        const side: 'search' | 'edit' = event.clientY < rect.top + rect.height / 2 ? 'search' : 'edit';
+
+        // 파일 드롭은 편집으로
+        const imageFile = Array.from(event.dataTransfer.files).find((f) => f.type.startsWith('image/'));
+        if (imageFile) {
+            setActiveTab('edit');
+            applyDroppedEditImage(imageFile);
+            return;
+        }
+
+        // URL 추출
+        const phomateData = event.dataTransfer.getData('application/x-phomate-photo');
+        let url = '';
+        if (phomateData) {
+            try { url = (JSON.parse(phomateData) as { url: string }).url; } catch { /* ignore */ }
+        }
+        if (!url) {
+            const uriList = event.dataTransfer.getData('text/uri-list');
+            if (uriList) url = uriList.split(/\r?\n/).map((l) => l.trim()).find((l) => !!l && !l.startsWith('#')) ?? '';
+        }
+        if (!url) url = event.dataTransfer.getData('text/plain').trim();
+        if (!url) return;
+
+        if (side === 'edit') {
+            setActiveTab('edit');
+            applyDroppedEditUrl(url);
+        } else {
+            handleImageSearch(url);
+        }
     };
 
     if (!isOpen) {
@@ -751,19 +796,17 @@ export default function Chatbot({
 
                 {/* 헤더 */}
                 <div className="chatbot-header">
-                    <div className="tabs">
-                        <button
-                            className={`tab-btn ${activeTab === 'search' ? 'active' : ''}`}
-                            onClick={() => handleTabChange('search')}
-                        >
-                            검색
-                        </button>
-                        <button
-                            className={`tab-btn edit ${activeTab === 'edit' ? 'active' : ''}`}
-                            onClick={() => handleTabChange('edit')}
-                        >
-                            편집
-                        </button>
+                    <div className="chatbot-header-left">
+                        <span className="chatbot-title">AI 대화</span>
+                        {activeTab === 'edit' && (
+                            <button
+                                className="chatbot-mode-badge"
+                                onClick={() => handleTabChange('search')}
+                                title="검색 모드로 전환"
+                            >
+                                ✏ 편집 모드
+                            </button>
+                        )}
                     </div>
                     <button className="panel-close-btn" onClick={handleClose}>
                         <X size={20} />
@@ -771,182 +814,147 @@ export default function Chatbot({
                 </div>
 
                 {/* 바디 */}
-                <div className="chatbot-body" ref={activeTab === 'search' ? bodyRef : undefined}>
-                    {activeTab === 'search' ? (
-                        // ── 검색 탭
-                        <div className="chat-view scroll-hide">
-                            {searchMessages.map((m) => (
-                                <div
-                                    key={m.id}
-                                    className={m.role === 'assistant' ? 'msg-bubble-bot' : 'msg-bubble-user'}
-                                >
-                                    {m.content || '...'}
-                                </div>
-                            ))}
-                            {folderPreview && folderPreview.status === 'pending' && (
-                                <div>
-                                    <div className="folder-preview-grid">
-                                        {folderPreview.photos.map((photo) => (
-                                            <div
-                                                key={photo.photoId}
-                                                className={`folder-preview-photo ${folderPreview.selectedPhotoIds.includes(photo.photoId) ? 'selected' : ''}`}
-                                                onClick={() => handlePhotoToggle(photo.photoId)}
-                                            >
-                                                {photo.previewUrl ? (
-                                                    <img src={photo.previewUrl} alt="preview" />
-                                                ) : (
-                                                    <div className="folder-preview-photo-empty">사진 {photo.photoId}</div>
-                                                )}
-                                                {folderPreview.selectedPhotoIds.includes(photo.photoId) && (
-                                                    <div className="photo-selected-badge">✓</div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="folder-preview-count">
-                                        선택된 사진: {folderPreview.selectedPhotoIds.length}장
-                                    </div>
-                                    <div className="folder-preview-actions">
-                                        <div className="folder-type-selector">
-                                            <button
-                                                className={`folder-type-btn ${folderPreviewType === 'PERSONAL' ? 'active' : ''}`}
-                                                onClick={() => setFolderPreviewType('PERSONAL')}
-                                                disabled={isSending}
-                                            >
-                                                📁 폴더
-                                            </button>
-                                            <button
-                                                className={`folder-type-btn ${folderPreviewType === 'SHARED' ? 'active' : ''}`}
-                                                onClick={() => setFolderPreviewType('SHARED')}
-                                                disabled={isSending}
-                                            >
-                                                🔗 공유폴더
-                                            </button>
-                                        </div>
-                                        <div className="folder-action-buttons">
-                                            <button
-                                                className="folder-preview-btn accept"
-                                                onClick={() => void handleFolderConfirm(true)}
-                                                disabled={isSending}
-                                            >
-                                                생성
-                                            </button>
-                                            <button
-                                                className="folder-preview-btn reject"
-                                                onClick={() => void handleFolderConfirm(false)}
-                                                disabled={isSending}
-                                            >
-                                                취소
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                            {errorMessage && <div className="chat-error-text">{errorMessage}</div>}
-                        </div>
-                    ) : (
-                        // ── 편집 탭
-                        <div className="edit-view">
-                            {/* 이미지 프리뷰 */}
-                            <div
-                                className={`edit-preview-area ${isEditDragOver ? 'drag-over' : ''}`}
-                                onDragOver={handleEditDragOver}
-                                onDragEnter={handleEditDragEnter}
-                                onDragLeave={handleEditDragLeave}
-                                onDrop={handleEditDrop}
-                            >
-                                {isEditSessionLoading ? (
-                                    <p className="preview-placeholder">편집 세션 준비 중...</p>
-                                ) : editedImageUrl ? (
-                                    <img src={editedImageUrl} alt="편집 결과" className="edit-preview-image" />
-                                ) : !selectedPhotoId ? (
-                                    <p className="preview-placeholder">편집할 사진을 선택해주세요.</p>
-                                ) : (
-                                    <p className="preview-placeholder">편집할 이미지를 여기에 드래그해서 놓아주세요.</p>
-                                )}
-                            </div>
+                <div
+                    className="chatbot-body"
+                    ref={activeTab === 'search' ? bodyRef : editChatRef}
+                    onDragOver={handleBodyDragOver}
+                    onDragLeave={handleBodyDragLeave}
+                    onDrop={handleBodyDrop}
+                >
 
-                            {/* 대화창 — 스크롤 가능 */}
-                            <div className="edit-chat-view" ref={editChatRef}>
-                                {editMessages.map((m) => (
+                    {/* 편집 모드일 때 이미지 프리뷰 */}
+                    {activeTab === 'edit' && (
+                        <div className="edit-preview-area">
+                            {isEditSessionLoading ? (
+                                <p className="preview-placeholder">편집 세션 준비 중...</p>
+                            ) : editedImageUrl ? (
+                                <img src={editedImageUrl} alt="편집 결과" className="edit-preview-image" />
+                            ) : !selectedPhotoId ? (
+                                <p className="preview-placeholder">편집할 사진을 선택해주세요.</p>
+                            ) : (
+                                <p className="preview-placeholder">이미지를 드래그해서 놓아주세요.</p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* 메시지 스트림 */}
+                    {(activeTab === 'search' ? searchMessages : editMessages).map((m) => (
+                        <div
+                            key={m.id}
+                            className={m.role === 'assistant' ? 'msg-bubble-bot' : 'msg-bubble-user'}
+                        >
+                            {m.imageUrl && (
+                                <img src={m.imageUrl} className="chat-msg-photo" alt="검색 사진" />
+                            )}
+                            {(m.content || !m.imageUrl) ? (m.content || '...') : null}
+                        </div>
+                    ))}
+
+                    {/* 폴더 미리보기 (검색 모드) */}
+                    {activeTab === 'search' && folderPreview && folderPreview.status === 'pending' && (
+                        <div>
+                            <div className="folder-preview-grid">
+                                {folderPreview.photos.map((photo) => (
                                     <div
-                                        key={m.id}
-                                        className={m.role === 'assistant' ? 'msg-bubble-bot' : 'msg-bubble-user'}
+                                        key={photo.photoId}
+                                        className={`folder-preview-photo ${folderPreview.selectedPhotoIds.includes(photo.photoId) ? 'selected' : ''}`}
+                                        onClick={() => handlePhotoToggle(photo.photoId)}
                                     >
-                                        {m.content || '...'}
+                                        {photo.previewUrl ? (
+                                            <img src={photo.previewUrl} alt="preview" />
+                                        ) : (
+                                            <div className="folder-preview-photo-empty">사진 {photo.photoId}</div>
+                                        )}
+                                        {folderPreview.selectedPhotoIds.includes(photo.photoId) && (
+                                            <div className="photo-selected-badge">✓</div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
-
-                            {errorMessage && <div className="chat-error-text">{errorMessage}</div>}
-
-                            {/* 하단 고정: Undo/Redo + 직접편집 + 저장및종료 */}
-                            <div className="edit-bottom">
-                                <div className="edit-toolbar">
+                            <div className="folder-preview-count">
+                                선택된 사진: {folderPreview.selectedPhotoIds.length}장
+                            </div>
+                            <div className="folder-preview-actions">
+                                <div className="folder-type-selector">
                                     <button
-                                        className="tool-btn"
-                                        onClick={() => void handleUndo()}
-                                        disabled={isSending || !isEditReady}
-                                        title="실행 취소"
+                                        className={`folder-type-btn ${folderPreviewType === 'PERSONAL' ? 'active' : ''}`}
+                                        onClick={() => setFolderPreviewType('PERSONAL')}
+                                        disabled={isSending}
                                     >
-                                        <Undo size={16} />
+                                        📁 폴더
                                     </button>
                                     <button
-                                        className="tool-btn"
-                                        onClick={() => void handleRedo()}
-                                        disabled={isSending || !isEditReady}
-                                        title="다시 실행"
+                                        className={`folder-type-btn ${folderPreviewType === 'SHARED' ? 'active' : ''}`}
+                                        onClick={() => setFolderPreviewType('SHARED')}
+                                        disabled={isSending}
                                     >
-                                        <Redo size={16} />
-                                    </button>
-                                    <button
-                                        className="tool-btn direct-edit"
-                                        disabled={!editedImageUrl || !isEditReady}
-                                        title="직접 편집"
-                                    >
-                                        <Edit3 size={14} /> 직접 편집
+                                        🔗 공유폴더
                                     </button>
                                 </div>
-                                <button
-                                    className="save-finish-btn"
-                                    onClick={() => void handleSaveAndExit()}
-                                    disabled={!editedImageUrl || isSaving || !isEditReady}
-                                >
-                                    <Save size={16} />
-                                    {isSaving ? '저장 중...' : '저장 및 종료'}
-                                </button>
+                                <div className="folder-action-buttons">
+                                    <button
+                                        className="folder-preview-btn accept"
+                                        onClick={() => void handleFolderConfirm(true)}
+                                        disabled={isSending}
+                                    >
+                                        생성
+                                    </button>
+                                    <button
+                                        className="folder-preview-btn reject"
+                                        onClick={() => void handleFolderConfirm(false)}
+                                        disabled={isSending}
+                                    >
+                                        취소
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
+
+                    {/* 편집 툴바 (편집 모드) */}
+                    {activeTab === 'edit' && (
+                        <div className="edit-bottom">
+                            <div className="edit-toolbar">
+                                <button
+                                    className="tool-btn"
+                                    onClick={() => void handleUndo()}
+                                    disabled={isSending || !isEditReady}
+                                    title="실행 취소"
+                                >
+                                    <Undo size={16} />
+                                </button>
+                                <button
+                                    className="tool-btn"
+                                    onClick={() => void handleRedo()}
+                                    disabled={isSending || !isEditReady}
+                                    title="다시 실행"
+                                >
+                                    <Redo size={16} />
+                                </button>
+                                <button
+                                    className="tool-btn direct-edit"
+                                    disabled={!editedImageUrl || !isEditReady}
+                                    title="직접 편집"
+                                >
+                                    <Edit3 size={14} /> 직접 편집
+                                </button>
+                            </div>
+                            <button
+                                className="save-finish-btn"
+                                onClick={() => void handleSaveAndExit()}
+                                disabled={!editedImageUrl || isSaving || !isEditReady}
+                            >
+                                <Save size={16} />
+                                {isSaving ? '저장 중...' : '저장 및 종료'}
+                            </button>
+                        </div>
+                    )}
+
+                    {errorMessage && <div className="chat-error-text">{errorMessage}</div>}
                 </div>
 
                 {/* 푸터 입력창 */}
                 <div className="chatbot-footer">
-                    {activeTab === 'search' ? (
-                        <div className="search-mode-row" role="group" aria-label="검색 모드 선택">
-                            <button
-                                type="button"
-                                className={`search-mode-chip ${searchMode === 'auto' ? 'active' : ''}`}
-                                onClick={() => setSearchMode('auto')}
-                            >
-                                자동
-                            </button>
-                            <button
-                                type="button"
-                                className={`search-mode-chip ${searchMode === 'search' ? 'active' : ''}`}
-                                onClick={() => setSearchMode('search')}
-                            >
-                                검색
-                            </button>
-                            <button
-                                type="button"
-                                className={`search-mode-chip ${searchMode === 'organize' ? 'active' : ''}`}
-                                onClick={() => setSearchMode('organize')}
-                            >
-                                폴더 생성
-                            </button>
-                        </div>
-                    ) : null}
                     <div className="input-field-pill">
                         <input
                             type="text"
@@ -964,9 +972,7 @@ export default function Chatbot({
                                             ? 'AI에게 편집 명령을 입력하세요...'
                                             : isGuestChatMode
                                                 ? '게스트 모드: 메시지를 입력하세요...'
-                                                : searchMode === 'organize'
-                                                    ? '예: 여행 사진을 폴더로 묶어줘'
-                                                    : '메시지를 입력하세요...'
+                                                : '메시지를 입력하세요...'
                             }
                         />
                         <button
@@ -978,6 +984,23 @@ export default function Chatbot({
                         </button>
                     </div>
                 </div>
+
+                {/* 드래그 선택 오버레이 — chatbot-window 기준 absolute (스크롤 영향 없음) */}
+                {isDragOver && (
+                    <div className="drag-choice-overlay">
+                        <div className={`drag-zone drag-zone-search${dragSide === 'search' ? ' active' : ''}`}>
+                            <Search size={32} strokeWidth={2.2} />
+                            <span className="drag-zone-label">이미지로 검색</span>
+                            <span className="drag-zone-sub">비슷한 사진을 찾아드립니다</span>
+                        </div>
+                        <div className="drag-zone-divider" />
+                        <div className={`drag-zone drag-zone-edit${dragSide === 'edit' ? ' active' : ''}`}>
+                            <Wand2 size={32} strokeWidth={2.2} />
+                            <span className="drag-zone-label">AI 편집</span>
+                            <span className="drag-zone-sub">사진을 AI로 수정합니다</span>
+                        </div>
+                    </div>
+                )}
             </div>
         </aside>
     );

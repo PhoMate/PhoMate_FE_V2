@@ -12,6 +12,7 @@ import NotificationPanel, { type AppNotificationItem } from '../components/Notif
 import InviteModal from '../components/Invitemodal';
 import TrashView from '../components/Trashview';
 import ActionModal from '../components/Actionmodal';
+import DeleteScopeModal from '../components/DeleteScopeModal';
 import UploadModal from '../components/Uploadmodal';
 import UploadStatusPanel from '../components/Uploadstatuspanel';
 import StorageUsageModal from '../components/StorageUsageModal';
@@ -156,6 +157,9 @@ const saveFolderDataToStorage = (data: object) => {
 
 const savedFolderData = loadFolderDataFromStorage();
 
+// 로그인 없이 기능 테스트 시 true로 설정. 로그인 재활성화 시 false로 되돌릴 것.
+const DEV_BYPASS_AUTH = false;
+
 export default function Home() {
     const preferPhotoControllerUpload = true;
 
@@ -180,8 +184,9 @@ export default function Home() {
         return '0 B';
     };
 
-    const [isLoggedIn, setIsLoggedIn] = useState<boolean>(isAuthenticated());
+    const [isLoggedIn, setIsLoggedIn] = useState<boolean>(DEV_BYPASS_AUTH || isAuthenticated());
     const [view, setView] = useState<ViewType>('home');
+    const [subNav, setSubNav] = useState<'home' | 'favorites' | 'recent'>('home');
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
     const [folders, setFolders] = useState<string[]>(savedFolderData?.folders ?? ['폴더 1']);
     const [folderStorageByName, setFolderStorageByName] = useState<Record<string, string>>({ '폴더 1': '0 MB' });
@@ -219,6 +224,7 @@ export default function Home() {
     const [notifications, setNotifications] = useState<HomeNotification[]>([]);
     const [modalConfig, setModalConfig] = useState<{ type: 'restore' | 'delete_confirm' | 'alert'; message: string } | null>(null);
     const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
+    const [deleteScopeTarget, setDeleteScopeTarget] = useState<{ photoIds: string[]; fromPreview: boolean } | null>(null);
     const [myPhotos, setMyPhotos] = useState<Photo[]>([]);
     const [chatSearchResultPhotos, setChatSearchResultPhotos] = useState<Photo[] | null>(null);
     const [chatSearchQuery, setChatSearchQuery] = useState('');
@@ -236,6 +242,7 @@ export default function Home() {
 
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
+    const [likedPhotoIds, setLikedPhotoIds] = useState<Set<string>>(new Set());
     const isDraggingRef = useRef(false); // 드래그 중 여부
 
     useEffect(() => {
@@ -273,6 +280,12 @@ const handleSelectAll = () => {
 
 const handleDeleteSelected = async () => {
     if (selectedPhotoIds.size === 0) return;
+
+    if (view === 'folder_detail') {
+        setDeleteScopeTarget({ photoIds: [...selectedPhotoIds], fromPreview: false });
+        return;
+    }
+
     const confirmed = window.confirm(`선택한 ${selectedPhotoIds.size}장을 휴지통으로 이동하시겠습니까?`);
     if (!confirmed) return;
 
@@ -287,6 +300,37 @@ const handleDeleteSelected = async () => {
             console.warn('삭제 실패:', id);
         }
     }
+    exitSelectMode();
+};
+
+const handleRemoveFromFolderOnly = () => {
+    const target = deleteScopeTarget;
+    if (!target || !selectedFolder) return;
+    setFolderPhotoIdsByName((prev) => ({
+        ...prev,
+        [selectedFolder]: (prev[selectedFolder] ?? []).filter((id) => !target.photoIds.includes(id)),
+    }));
+    setDeleteScopeTarget(null);
+    if (target.fromPreview) setPreviewIndex(null);
+    exitSelectMode();
+};
+
+const handleDeleteFromAccountViaScope = async () => {
+    const target = deleteScopeTarget;
+    if (!target) return;
+    setDeleteScopeTarget(null);
+    for (const id of target.photoIds) {
+        const photoId = Number(id);
+        if (!Number.isFinite(photoId) || photoId <= 0) continue;
+        try {
+            await movePhotoToTrash(photoId);
+            setMyPhotos((prev) => prev.filter((p) => p.id !== id));
+            setPhotoSizeBytesById((prev) => { const next = { ...prev }; delete next[id]; return next; });
+        } catch {
+            console.warn('삭제 실패:', id);
+        }
+    }
+    if (target.fromPreview) setPreviewIndex(null);
     exitSelectMode();
 };
 
@@ -334,6 +378,7 @@ useEffect(() => {
     };
 
     useEffect(() => {
+        if (DEV_BYPASS_AUTH) return;
         let mounted = true;
         completeGoogleLoginIfNeeded()
             .then((handled) => {
@@ -394,7 +439,7 @@ useEffect(() => {
     };
 
     const pushNotification = (notification: Omit<HomeNotification, 'id' | 'createdAt' | 'read'>) => {
-        if (notification.kind === 'upload' || notification.kind === 'folder') return;
+        if (notification.kind === 'folder') return;
         setNotifications((prev) => [
             {
                 ...notification,
@@ -538,6 +583,10 @@ useEffect(() => {
         if (!isLoggedIn) return;
         let mounted = true;
         void (async () => {
+            if (DEV_BYPASS_AUTH) {
+                if (mounted) setMemberProfile({ memberId: 0, nickname: '테스트 유저', profileImageUrl: '' });
+                return;
+            }
             const profile = await loadMyProfile();
             if (!mounted || !profile) return;
             await loadAlbum(); // 초기 로드 (cursor 없음)
@@ -577,8 +626,15 @@ useEffect(() => {
         uploadItems.forEach((task) => {
             const previousStatus = uploadNotificationStatusRef.current[task.id];
             const shouldNotify = (task.status === 'done' || task.status === 'error') && previousStatus !== task.status;
-            if (shouldNotify && task.status === 'error') {
-                console.warn('업로드 실패:', task.filename, task.errorMessage);
+            if (shouldNotify) {
+                pushNotification({
+                    kind: 'upload',
+                    title: task.status === 'done' ? '업로드 완료' : '업로드 실패',
+                    message: task.filename,
+                    uploadStatus: task.status === 'done' ? 'done' : 'error',
+                    progress: task.status === 'done' ? 100 : (task.progress ?? 0),
+                    errorMessage: task.status === 'error' ? (task.errorMessage ?? '알 수 없는 오류') : undefined,
+                });
             }
             uploadNotificationStatusRef.current[task.id] = task.status;
         });
@@ -615,7 +671,7 @@ useEffect(() => {
     const startUpload = async (files: File[]) => {
         if (files.length === 0) return;
 
-        if (!isAuthenticated()) {
+        if (!DEV_BYPASS_AUTH && !isAuthenticated()) {
             window.alert('업로드는 로그인 후 사용할 수 있습니다.');
             setIsUploadModalOpen(false);
             return;
@@ -633,6 +689,27 @@ useEffect(() => {
 
         setUploadItems(initialTasks);
         setIsUploading(true);
+
+        // DEV 모드: 실제 API 없이 로컬 파일로 시뮬레이션
+        if (DEV_BYPASS_AUTH) {
+            const mockPhotos: Photo[] = [];
+            for (const task of initialTasks) {
+                updateUploadTask(task.id, { status: 'uploading', progress: 60 });
+                await new Promise<void>((resolve) => setTimeout(resolve, 350));
+                const previewUrl = URL.createObjectURL(task.file);
+                updateUploadTask(task.id, { status: 'done', progress: 100 });
+                mockPhotos.push({
+                    id: task.id,
+                    thumbnailUrl: previewUrl,
+                    previewUrl,
+                    shotAt: new Date().toISOString(),
+                    likeCount: 0,
+                });
+            }
+            setMyPhotos((prev) => [...mockPhotos, ...prev]);
+            window.setTimeout(() => setIsUploading(false), 1200);
+            return;
+        }
 
         setPhotoSizeBytesById((prev) => {
             const next = { ...prev };
@@ -850,12 +927,14 @@ useEffect(() => {
     };
 
     const handleNavigate = (type: string, target?: string) => {
-        if (type === 'home') { setView('home'); setSelectedFolder(null); }
-        else if (type === 'trash') { setView('trash'); setSelectedFolder(null); }
-        else if (type === 'folder_parent') { setView('folder_list'); setSelectedFolder(null); }
-        else if (type === 'folder_child') { setView('folder_detail'); setSelectedFolder(target || null); }
-        else if (type === 'shared_parent') { setView('shared_list'); setSelectedFolder(null); }
-        else if (type === 'shared_child') { setView('shared_detail'); setSelectedFolder(target || null); }
+        if (type === 'home') { setView('home'); setSubNav('home'); setSelectedFolder(null); }
+        else if (type === 'favorites') { setView('home'); setSubNav('favorites'); setSelectedFolder(null); }
+        else if (type === 'recent') { setView('home'); setSubNav('recent'); setSelectedFolder(null); }
+        else if (type === 'trash') { setView('trash'); setSubNav('home'); setSelectedFolder(null); }
+        else if (type === 'folder_parent') { setView('folder_list'); setSubNav('home'); setSelectedFolder(null); }
+        else if (type === 'folder_child') { setView('folder_detail'); setSubNav('home'); setSelectedFolder(target || null); }
+        else if (type === 'shared_parent') { setView('shared_list'); setSubNav('home'); setSelectedFolder(null); }
+        else if (type === 'shared_child') { setView('shared_detail'); setSubNav('home'); setSelectedFolder(target || null); }
     };
 
     const handleSaveFolder = (name: string) => {
@@ -935,6 +1014,8 @@ useEffect(() => {
     };
 
     const activeNavKey =
+        view === 'home' && subNav === 'favorites' ? 'favorites' :
+        view === 'home' && subNav === 'recent' ? 'recent' :
         view === 'home' ? 'home' :
         view === 'trash' ? 'trash' :
         view === 'folder_list' ? 'folder_parent' :
@@ -952,8 +1033,19 @@ useEffect(() => {
         ? (sharedFolderPhotosByName[selectedFolder] ?? []).map((entry) => entry.photo)
         : [];
 
+    const handleLikeToggle = (photoId: string) => {
+        setLikedPhotoIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(photoId)) next.delete(photoId);
+            else next.add(photoId);
+            return next;
+        });
+    };
+
+    const baseHomePhotos = chatSearchResultPhotos ?? myPhotos;
     const currentViewPhotos =
-        view === 'home' ? (chatSearchResultPhotos ?? myPhotos) :
+        view === 'home' && subNav === 'favorites' ? baseHomePhotos.filter((p) => likedPhotoIds.has(p.id)) :
+        view === 'home' ? baseHomePhotos :
         view === 'folder_detail' ? folderPhotos :
         view === 'shared_detail' ? sharedPhotos :
         [];
@@ -1046,6 +1138,11 @@ useEffect(() => {
         const photoId = Number(target.id);
         if (!Number.isFinite(photoId) || photoId <= 0) { window.alert('유효하지 않은 사진 ID입니다.'); return; }
 
+        if (view === 'folder_detail') {
+            setDeleteScopeTarget({ photoIds: [target.id], fromPreview: true });
+            return;
+        }
+
         try {
             await movePhotoToTrash(photoId);
             setMyPhotos((prev) => prev.filter((photo) => photo.id !== target.id));
@@ -1082,6 +1179,8 @@ useEffect(() => {
                     activeNav={activeNavKey}
                     folders={folders}
                     sharedFolders={sharedFolders}
+                    folderPhotoCounts={Object.fromEntries(folders.map((f) => [f, (folderPhotoIdsByName[f] ?? []).filter((id) => myPhotoMap.has(id)).length]))}
+                    sharedFolderPhotoCounts={Object.fromEntries(sharedFolders.map((f) => [f, (sharedFolderPhotosByName[f] ?? []).length]))}
                     onNavClick={handleNavigate}
                     onPlusClick={() => { setFolderModalMode('create'); setSelectedFolderForSettings('새 폴더'); setIsFolderModalOpen(true); }}
                     onLinkClick={() => { setSharedModalMode('create'); setSelectedSharedFolderForSettings(`공유 폴더 ${sharedFolders.length + 1}`); setIsSharedModalOpen(true); }}
@@ -1089,22 +1188,27 @@ useEffect(() => {
                     totalStorageText={totalStorageText}
                     storagePercent={storagePercent}
                     onStorageClick={() => setIsStorageModalOpen(true)}
-                    onLogoutClick={handleLogout}
-                    isLoggedIn={isLoggedIn}
-                    onLoginClick={() => void handleLogin()}
                     onFolderSettingsClick={(name) => { setFolderModalMode('settings'); setSelectedFolderForSettings(name); setIsFolderModalOpen(true); }}
                     onSharedFolderSettingsClick={(name) => { setSharedModalMode('settings'); setSelectedSharedFolderForSettings(name); setIsSharedModalOpen(true); }}
                 />
 
                 <main className={`photo-area ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'} ${isChatOpen ? 'chat-open' : 'chat-closed'}`}>
-                    {selectedFolder && (isFolderDetailView || isSharedDetailView) ? (
-                        <div className="folder-title-row">
-                            <h2 className="folder-title">{selectedFolder}</h2>
-                            <button className="folder-add-photo-btn" onClick={openAddPhotosModal}>사진 추가</button>
+                    {view !== 'trash' && (
+                        <div className="content-header">
+                            <h2 className="content-title">
+                                {selectedFolder
+                                    ? selectedFolder
+                                    : view === 'folder_list' ? '내 폴더'
+                                    : view === 'shared_list' ? '공유 보관함'
+                                    : subNav === 'favorites' ? '즐겨찾기'
+                                    : subNav === 'recent' ? '최근 업로드'
+                                    : '홈'}
+                            </h2>
+                            {(isFolderDetailView || isSharedDetailView) && (
+                                <button className="folder-add-photo-btn" onClick={openAddPhotosModal}>+ 사진 추가</button>
+                            )}
                         </div>
-                    ) : selectedFolder ? (
-                        <h2 className="folder-title">{selectedFolder}</h2>
-                    ) : null}
+                    )}
 
                     {isChatSearchView ? (
                         <div className="search-result-banner">
@@ -1132,6 +1236,18 @@ useEffect(() => {
                                         key={photo.id}
                                         photo={photo}
                                         onClick={() => { if (!isChatSearchView) setPreviewIndex(index); }}
+                                        isSelectMode={isSelectMode}
+                                        isSelected={selectedPhotoIds.has(photo.id)}
+                                        onSelect={() => {
+                                            setSelectedPhotoIds((prev) => {
+                                                const next = new Set(prev);
+                                                if (next.has(photo.id)) next.delete(photo.id);
+                                                else next.add(photo.id);
+                                                return next;
+                                            });
+                                        }}
+                                        isLiked={likedPhotoIds.has(photo.id)}
+                                        onLikeToggle={() => handleLikeToggle(photo.id)}
                                     />
                                 ))}
                             </div>
@@ -1214,10 +1330,12 @@ useEffect(() => {
                     onDownload={() => {
                         const currentPhoto = currentViewPhotos[previewIndex];
                         const url = currentPhoto.previewUrl || currentPhoto.thumbnailUrl;
-                        // 파일명은 사진 ID나 shotAt(촬영일)을 활용해 지정합니다.
                         const fileName = `phomate_${currentPhoto.id}_${currentPhoto.shotAt || 'image'}.jpg`;
-            
-                        void downloadImage(url, fileName);}}
+                        void downloadImage(url, fileName);
+                    }}
+                    isLiked={likedPhotoIds.has(currentViewPhotos[previewIndex].id)}
+                    onLikeToggle={() => handleLikeToggle(currentViewPhotos[previewIndex].id)}
+                    photoSizeBytes={photoSizeBytesById[currentViewPhotos[previewIndex].id] ?? 0}
                 />
             )}
 
@@ -1225,7 +1343,7 @@ useEffect(() => {
                 <FolderModal
                     mode={folderModalMode}
                     folderName={selectedFolderForSettings}
-                    photoCount={(folderPhotoIdsByName[selectedFolderForSettings] ?? []).length}
+                    photoCount={(folderPhotoIdsByName[selectedFolderForSettings] ?? []).filter((id) => myPhotoMap.has(id)).length}
                     createdAt={folderCreatedAtByName[selectedFolderForSettings] ?? todayDateText}
                     usedStorage={folderStorageByName[selectedFolderForSettings] ?? '0 MB'}
                     onSave={handleSaveFolder}
@@ -1300,6 +1418,16 @@ useEffect(() => {
                     folderUsages={folders.map((name) => ({ name, storage: folderStorageByName[name] ?? '0 MB' }))}
                     sharedFolderUsages={sharedFolders.map((name) => ({ name, storage: sharedFolderStorageByName[name] ?? '0 MB' }))}
                     onClose={() => setIsStorageModalOpen(false)}
+                />
+            )}
+
+            {deleteScopeTarget && selectedFolder && (
+                <DeleteScopeModal
+                    photoCount={deleteScopeTarget.photoIds.length}
+                    folderName={selectedFolder}
+                    onRemoveFromFolder={handleRemoveFromFolderOnly}
+                    onDeleteFromAccount={() => void handleDeleteFromAccountViaScope()}
+                    onClose={() => setDeleteScopeTarget(null)}
                 />
             )}
         </div>

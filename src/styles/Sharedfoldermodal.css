@@ -2,18 +2,21 @@
 .modal-overlay {
     position: fixed;
     top: 0; left: 0; width: 100vw; height: 100vh;
-    background: rgba(15, 23, 42, 0.4);
-    backdrop-filter: blur(4px);
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(6px);
     display: flex; justify-content: center; align-items: center;
     z-index: 9999;
 }
 
 .shared-modal-card {
     width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
     background: #ffffff;
-    border-radius: 32px;
-    padding: 32px;
-    box-shadow: 0 20px 60px -12px rgba(0, 0, 0, 0.2);
+    border: 1px solid #e5e7eb;
+    border-radius: 24px;
+    padding: 28px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
     display: flex;
     flex-direction: column;
 }
@@ -22,70 +25,112 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 24px;
+    margin-bottom: 22px;
 }
 
 .modal-title {
-    font-size: 20px;
-    font-weight: 600;
-    color: #1e293b;
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
     margin: 0;
 }
 
 .text-link-btn {
-    font-size: 16px;
+    font-size: 14px;
     color: #64748b;
     background: none; border: none;
-    font-weight: 800;
+    font-weight: 700;
     cursor: pointer;
-    margin-top: 12px;
+    margin-top: 10px;
+    transition: color 0.15s;
 }
 
-.section-container { margin-bottom: 20px; }
+.text-link-btn:hover { color: #334155; }
+
+.section-container { margin-bottom: 18px; }
 
 .section-label {
     display: block;
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 700;
     color: #64748b;
-    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
 }
 
-/* 입력 행 정렬 최적화 */
+.section-label-optional {
+    font-size: 10px;
+    font-weight: 500;
+    color: #94a3b8;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: 4px;
+}
+
 .invite-input-row {
     display: flex;
     gap: 8px;
-    background: #f1f5f9;
-    padding: 8px;
-    border-radius: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 6px 6px 6px 12px;
+    border-radius: 14px;
+    align-items: center;
+    transition: border-color 0.2s;
 }
+
+.invite-input-row:focus-within { border-color: #93c5fd; }
 
 .modern-input {
     flex: 1;
     background: transparent;
     border: none;
     font-size: 13px;
-    padding: 8px;
+    padding: 8px 0;
     outline: none;
+    color: #1e293b;
 }
+
+.modern-input::placeholder { color: #94a3b8; }
 
 .role-dropdown {
-    border: 1px solid #cbd5e1;
-    border-radius: 10px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
     font-size: 12px;
-    padding: 4px 8px;
+    padding: 5px 10px;
+    color: #334155;
 }
 
-.icon-action-btn.primary {
-    background: #003366;
-    color: white;
-    border: none;
+.icon-action-btn {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #475569;
     border-radius: 10px;
     padding: 8px 12px;
     cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.15s, color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
 }
 
-/* 링크 복사 영역 스타일 */
+.icon-action-btn:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.icon-action-btn.primary {
+    background: #3b82f6;
+    color: white;
+    border-color: transparent;
+}
+
+.icon-action-btn.primary:hover { background: #2563eb; }
+
 .link-copy-container {
     display: flex;
     align-items: center;
@@ -101,11 +146,12 @@
     border: none;
     background: transparent;
     font-size: 12px;
-    color: #475569;
+    color: #64748b;
+    outline: none;
 }
 
 .copy-btn {
-    background: #003366;
+    background: #3b82f6;
     color: white;
     border: none;
     border-radius: 10px;
@@ -113,25 +159,33 @@
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
 }
 
+.copy-btn:hover { opacity: 0.88; }
 .copy-btn.success { background: #10b981; }
 
 .copy-btn:disabled,
 .icon-action-btn.primary:disabled,
 .save-btn:disabled,
 .quit-btn:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
 }
 
 .folder-summary-box {
-    padding: 12px 16px;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
 }
 
 .folder-summary-row {
     width: 100%;
     justify-content: space-around;
+    display: flex;
+    align-items: center;
 }
 
 .summary-divider {
@@ -140,30 +194,31 @@
     background: #e2e8f0;
 }
 
-.summary-icon {
-    color: #1e3a8a;
-}
+.summary-icon { color: #1d4ed8; }
 
 .summary-text {
     font-size: 13px;
     font-weight: 600;
+    color: #334155;
 }
 
 .info-item {
     display: flex;
     align-items: center;
     gap: 8px;
+    color: #475569;
+    font-size: 13px;
 }
 
 .shared-status-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: 10px;
 }
 
 .shared-status-card {
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
     background: #f8fafc;
     padding: 14px;
     display: flex;
@@ -175,11 +230,15 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
 }
 
 .shared-status-value {
     color: #0f172a;
     font-size: 16px;
+    font-weight: 700;
 }
 
 .shared-inline-actions {
@@ -202,9 +261,10 @@
 
 .shared-folder-status-message {
     margin: 0;
-    padding: 12px 14px;
-    border-radius: 14px;
+    padding: 11px 14px;
+    border-radius: 12px;
     background: #eff6ff;
+    border: 1px solid #bfdbfe;
     color: #1d4ed8;
     font-size: 12px;
     font-weight: 600;
@@ -220,21 +280,24 @@
 .shared-member-chip {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    border: 1px solid #cbd5e1;
+    gap: 6px;
+    border: 1px solid #e2e8f0;
     border-radius: 999px;
     background: #f8fafc;
     color: #334155;
-    padding: 6px 12px;
+    padding: 5px 12px;
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
 }
 
+.shared-member-chip:hover { background: #f1f5f9; }
+
 .shared-member-chip.active {
-    border-color: #003366;
-    background: #e6efff;
-    color: #003366;
+    border-color: #3b82f6;
+    background: #eef3ff;
+    color: #1d4ed8;
 }
 
 .shared-member-empty {
@@ -243,7 +306,6 @@
     font-size: 12px;
 }
 
-/* 멤버 카드 디자인 */
 .member-item-card {
     display: flex;
     justify-content: space-between;
@@ -252,119 +314,174 @@
     border-bottom: 1px solid #f1f5f9;
 }
 
+.member-list-area { margin-bottom: 12px; }
+
 .member-info { display: flex; align-items: center; gap: 12px; }
 
 .member-avatar {
-    width: 36px; height: 36px;
-    background: #e2e8f0;
+    width: 34px;
+    height: 34px;
+    background: linear-gradient(135deg, #1e3a6e, #3b82f6);
     border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 800; font-size: 14px; color: #475569;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+    color: white;
+    flex-shrink: 0;
 }
 
+.member-text { display: flex; flex-direction: column; }
 .name-box { display: flex; align-items: center; gap: 4px; }
-.name { font-weight: 700; font-size: 14px; color: #1e293b; }
+.name { font-weight: 700; font-size: 13px; color: #1e293b; }
 .crown-icon { color: #f59e0b; }
-.email { font-size: 11px; color: #94a3b8; }
+.email { font-size: 11px; color: #94a3b8; margin-top: 2px; }
 
 .owner-tag {
-    background: #fff9c4;
-    color: #854d0e;
-    padding: 4px 10px;
+    background: #fef3c7;
+    color: #92400e;
+    padding: 3px 10px;
     border-radius: 20px;
     font-size: 11px;
-    font-weight: 800;
+    font-weight: 700;
 }
 
-/* 하단 푸터 */
 .modal-footer {
-    margin-top: 32px;
+    margin-top: 20px;
     display: flex;
-    gap: 12px;
+    gap: 10px;
 }
 
 .save-btn {
     flex: 2;
-    background: #003366;
+    background: linear-gradient(135deg, #1e3a6e, #3b82f6);
     color: white;
     border: none;
-    border-radius: 16px;
-    padding: 16px;
+    border-radius: 14px;
+    padding: 14px;
     font-weight: 700;
+    font-size: 14px;
     cursor: pointer;
+    transition: opacity 0.15s;
 }
+
+.save-btn:hover { opacity: 0.9; }
 
 .quit-btn {
     flex: 1;
-    background: #fef2f2;
+    background: #fff5f5;
     color: #ef4444;
-    border: none;
-    border-radius: 16px;
-    padding: 16px;
+    border: 1px solid #fee2e2;
+    border-radius: 14px;
+    padding: 14px;
     font-weight: 700;
     font-size: 13px;
     cursor: pointer;
+    transition: background 0.15s;
 }
 
-/* --- 멤버 권한 설정 및 삭제 영역 최적화 --- */
+.quit-btn:hover { background: #fee2e2; }
 
-/* 1. 드롭다운 부모 컨테이너 (정렬용) */
 .control-group {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 }
 
-/* 2. 보기전용/편집가능 커스텀 드롭다운 */
 .member-role-select {
-    appearance: none; /* 브라우저 기본 화살표 제거 */
+    appearance: none;
     background-color: #f8fafc;
-    /* 커스텀 화살표 아이콘 삽입 (image_cae482.png의 겹침 해결) */
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23475569'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2347556980'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right 10px center;
+    background-position: right 8px center;
     background-size: 12px;
     border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 6px 32px 6px 14px; /* 오른쪽 여백 확보로 텍스트 잘림 방지 */
+    border-radius: 8px;
+    padding: 5px 28px 5px 12px;
     font-size: 12px;
     font-weight: 600;
     color: #475569;
     cursor: pointer;
-    transition: all 0.2s ease;
-    min-width: 100px;
+    transition: border-color 0.15s;
+    min-width: 90px;
 }
 
 .member-role-select:hover {
-    border-color: #003366;
-    color: #003366;
-    background-color: #ffffff;
+    border-color: #3b82f6;
+    color: #1e293b;
 }
 
-/* 3. 휴지통 버튼 (PhoMate 스타일) */
 .delete-member-btn {
     background: transparent;
     border: none;
-    color: #94a3b8; /* 평소에는 차분한 색상 */
-    padding: 8px;
+    color: #94a3b8;
+    padding: 7px;
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background 0.15s, color 0.15s;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 .delete-member-btn:hover {
-    background-color: #fff1f2; /* 삭제 경고의 연한 레드 배경 */
-    color: #e11d48; /* 휴지통 아이콘 색상 강조 */
+    background: #fff5f5;
+    color: #ef4444;
 }
 
-/* 4. 멤버 카드 행(Row) 정렬 보정 */
-.member-item-card {
+/* 생성 모드 대기 초대 목록 */
+.pending-invite-list {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pending-invite-item {
+    display: flex;
     align-items: center;
-    padding: 14px 0; /* 여백을 조금 더 넓혀 가독성 향상 */
-    border-bottom: 1px solid #f1f5f9;
+    gap: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+.pending-invite-email {
+    flex: 1;
+    color: #334155;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pending-invite-role {
+    color: #64748b;
+    font-size: 12px;
+    white-space: nowrap;
+    background: #e2e8f0;
+    border-radius: 6px;
+    padding: 2px 8px;
+}
+
+.pending-invite-remove {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 2px 4px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: color 0.12s, background 0.12s;
+}
+
+.pending-invite-remove:hover {
+    color: #ef4444;
+    background: #fff1f2;
 }

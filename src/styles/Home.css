@@ -15,45 +15,46 @@
 .photo-area.sidebar-closed { margin-left: 0; }
 
 .photo-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 20px;
+    columns: 4;
+    column-gap: 10px;
 }
 
-.folder-title {
-    margin: 0 0 18px 2px;
-    font-size: 32px;
-    font-weight: 800;
-    line-height: 1.2;
-    color: #1e293b;
-    letter-spacing: -0.3px;
-}
-
-.folder-title-row {
+.content-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 18px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
-.folder-title-row .folder-title {
+.content-title {
     margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.1px;
 }
 
 .folder-add-photo-btn {
     border: none;
-    background: #003366;
+    background: linear-gradient(135deg, #1e3a6e, #3b82f6);
     color: #ffffff;
-    border-radius: 12px;
-    padding: 10px 14px;
+    border-radius: 10px;
+    padding: 8px 14px;
     font-size: 13px;
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
 }
 
 .folder-add-photo-btn:hover {
-    opacity: 0.92;
+    opacity: 0.88;
 }
 
 .search-result-banner {
@@ -99,15 +100,29 @@
 .sidebar-minimized {
     width: 50px;
     height: 100%;
-    background: #fff;
-    border-right: 1px solid #e5e7eb;
+    background: #0f172a;
+    border-right: none;
     display: flex;
-    justify-content: center;
-    padding-top: 20px;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 16px;
+    gap: 12px;
     cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s;
 }
 
-.toggle-icon { color: #003366; font-size: 20px; font-weight: bold; }
+.sidebar-minimized:hover {
+    background: #1e293b;
+}
+
+.toggle-icon {
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 18px;
+    font-weight: bold;
+    line-height: 1;
+    user-select: none;
+}
 
 .bottom-controls {
     position: fixed;

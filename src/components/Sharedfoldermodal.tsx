@@ -428,6 +428,7 @@ export default function SharedFolderModal({
   const [resolvedFolderId, setResolvedFolderId] = useState<number | null>(typeof folderId === 'number' && folderId > 0 ? folderId : null);
   const [invitationStatus, setInvitationStatus] = useState<InvitationStatus | null>(null);
   const [isCheckingInvitation, setIsCheckingInvitation] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState<{ email: string; role: SharedFolderRole }[]>([]);
 
   const normalizeEmail = (value: string): string => normalizeName(value);
   const isValidEmail = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
@@ -560,11 +561,50 @@ export default function SharedFolderModal({
     });
   };
 
+  const handleAddPendingInvite = () => {
+    const email = normalizeEmail(inviteEmail);
+    if (!isValidEmail(email)) {
+      setStatusMessage('올바른 이메일 주소를 입력해주세요.');
+      return;
+    }
+    if (pendingInvites.some((p) => p.email === email)) {
+      setStatusMessage('이미 추가된 이메일입니다.');
+      return;
+    }
+    setPendingInvites((prev) => [...prev, { email, role: inviteRole }]);
+    setInviteEmail('');
+    setStatusMessage('');
+  };
+
+  const handleRemovePendingInvite = (email: string) => {
+    setPendingInvites((prev) => prev.filter((p) => p.email !== email));
+  };
+
   const handleSave = async () => {
     const trimmed = inputName.trim();
     if (!trimmed) return;
     const result = await Promise.resolve(onSave(trimmed));
     if (result === false) return;
+
+    // create 모드에서 대기 초대 일괄 발송
+    if (mode === 'create' && pendingInvites.length > 0) {
+      setIsBusy(true);
+      try {
+        const folderId = await resolveOrCreateSharedFolderId(trimmed);
+        for (const invite of pendingInvites) {
+          try {
+            await inviteSharedFolderMemberByEmail(folderId, invite.email, invite.role);
+          } catch {
+            // 개별 초대 실패는 무시하고 계속
+          }
+        }
+      } catch {
+        // 폴더 ID 조회 실패 시에도 모달은 닫기
+      } finally {
+        setIsBusy(false);
+      }
+    }
+
     onClose();
   };
 
@@ -785,6 +825,48 @@ export default function SharedFolderModal({
               </div>
             </div>
 
+            {mode === 'create' && (
+              <div className="section-container">
+                <label className="section-label">멤버 초대 <span className="section-label-optional">(선택)</span></label>
+                <div className="invite-input-row">
+                  <input
+                    type="email"
+                    className="modern-input"
+                    placeholder="초대할 이메일 입력"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddPendingInvite(); } }}
+                    disabled={isBusy}
+                  />
+                  <select
+                    className="role-dropdown"
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value as SharedFolderRole)}
+                    disabled={isBusy}
+                  >
+                    <option value="READ">보기 전용</option>
+                    <option value="WRITE">편집 가능</option>
+                    <option value="ADMIN">관리자</option>
+                  </select>
+                  <button className="icon-action-btn primary" onClick={handleAddPendingInvite} disabled={isBusy}>
+                    <UserPlus size={18} />
+                  </button>
+                </div>
+                {statusMessage && <p className="shared-folder-status-message">{statusMessage}</p>}
+                {pendingInvites.length > 0 && (
+                  <ul className="pending-invite-list">
+                    {pendingInvites.map((inv) => (
+                      <li key={inv.email} className="pending-invite-item">
+                        <span className="pending-invite-email">{inv.email}</span>
+                        <span className="pending-invite-role">{inv.role === 'READ' ? '보기 전용' : inv.role === 'WRITE' ? '편집 가능' : '관리자'}</span>
+                        <button className="pending-invite-remove" onClick={() => handleRemovePendingInvite(inv.email)} title="제거">✕</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
             {mode === 'settings' && (
               <>
                 <div className="section-container">
@@ -896,7 +978,9 @@ export default function SharedFolderModal({
         {/* 하단 푸터 버튼 */}
         <div className="modal-footer">
           {mode === 'settings' && <button className="quit-btn" onClick={handleLeaveFolder}>폴더 나가기</button>}
-          <button className="save-btn" onClick={handleSave}>{mode === 'create' ? '폴더 생성' : '설정 완료'}</button>
+          <button className="save-btn" onClick={() => void handleSave()} disabled={isBusy}>
+            {isBusy ? '초대 전송 중...' : mode === 'create' ? '폴더 생성' : '설정 완료'}
+          </button>
         </div>
 
         {isLeaveConfirmOpen && (

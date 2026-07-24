@@ -1,231 +1,430 @@
+/* ===== SIDEBAR — Dark Navy ===== */
 .sidebar {
   width: 240px;
   height: 100%;
-  background-color: #ffffff;
-  border-right: 1px solid #e5e7eb;
-  padding: 40px 24px;
+  background-color: #0f172a;
+  padding: 20px 12px;
   display: flex;
   flex-direction: column;
-  gap: 35px;
+  gap: 0;
   font-family: 'Pretendard', sans-serif;
   box-sizing: border-box;
   overflow-y: auto;
 }
 
-/* 홈 텍스트와 닫기 버튼 정렬 (Y축 일치) */
-.sidebar-header {
+/* 브랜드 로고 */
+.sidebar-brand {
   display: flex;
-  justify-content: space-between;
-  align-items: center; /* Y축 중앙 정렬 */
-  margin-bottom: 5px; /* 섹션과의 간격 조절 */
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  margin-bottom: 20px;
 }
 
-/* 홈 글자 스타일 (X축은 아래 제목들과 일치) */
-.nav-home-text {
-  font-size: 20px;
-  font-weight: 600;
-  color: #003366;
-  cursor: pointer;
-  padding-left: 0; /* X축 정렬을 위해 여백 제거 */
+.sidebar-brand-icon {
+  width: 30px;
+  height: 30px;
+  background: linear-gradient(135deg, #1e3a6e 0%, #3b82f6 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 900;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.sidebar-brand-name {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
 }
 
 .sidebar-close-btn {
-  font-size: 28px;
-  color: #9ca3af;
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.55);
   cursor: pointer;
+  font-size: 16px;
+  background: none;
+  border: none;
+  padding: 4px;
   line-height: 1;
+  transition: color 0.15s;
 }
 
-/* 섹션 타이틀 */
+.sidebar-close-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* 상단 네비 아이템 (홈/즐겨찾기/최근 업로드) */
+.nav-home-text {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 2px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav-home-text:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+.nav-home-text.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  font-weight: 600;
+}
+
+/* 섹션 */
 .sidebar-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 2px;
+  margin-bottom: 8px;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0 8px;
+  margin: 14px 0 6px;
 }
 
 .section-title-box {
   display: flex;
   align-items: center;
-  gap: 6px;
-}
-
-.section-toggle-btn {
-  border: none;
-  background: transparent;
-  color: #6b7280;
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2px;
-  border-radius: 4px;
-}
-
-.section-toggle-btn:hover {
-  color: #374151;
-  background-color: #f3f4f6;
+  gap: 4px;
 }
 
 .section-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #003366;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.65);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   cursor: pointer;
+}
+
+.section-toggle-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
 }
 
 .icon-btn-box {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  color: rgba(255, 255, 255, 0.55);
   cursor: pointer;
   padding: 4px;
   border-radius: 6px;
-  color: #6b7280;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
 }
 
 .icon-btn-box:hover {
-  background: #f3f4f6;
-  color: #374151;
+  color: rgba(255, 255, 255, 0.9);
 }
 
-/* 서브 아이템 (선택 시 진하게 변경) */
-.sub-item {
-  font-size: 14px;
-  color: #9ca3af; /* 기본은 흐린 색 */
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 0;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
+/* 폴더 아이템 행 */
 .sub-item-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  border-radius: 10px;
+  transition: background 0.15s;
 }
 
-.sub-item-row .sub-item {
+.sub-item-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sub-item {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s;
+  min-width: 0;
 }
 
+.sub-item.active {
+  color: white;
+  font-weight: 600;
+}
+
+.sub-item-row:has(.sub-item.active) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 폴더 썸네일 */
+.folder-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.folder-thumb-placeholder {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.sub-item .folder-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: white;
+  text-align: left;
+}
+
+/* 카운트 뱃지 */
+.folder-count {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.sub-item.active .folder-count {
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* 설정 버튼 */
 .sub-item-setting-btn {
+  background: none;
   border: none;
-  background: transparent;
-  color: #9ca3af;
+  color: rgba(255, 255, 255, 0.45);
   font-size: 13px;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 5px 6px;
   border-radius: 6px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
 }
 
 .sub-item-setting-btn:hover {
-  color: #374151;
-  background: #f3f4f6;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.08);
 }
 
-/* 선택(Active) 및 호버 상태 스타일 */
-.nav-home-text.active,
-.sub-item.active {
-  color: #003366; /* 진한 색상 */
-  font-weight: 700; /* 굵게 */
+/* 휴지통 */
+.sidebar-extra-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background 0.15s, color 0.15s;
 }
 
-.sub-item.active svg {
-  stroke: #003366; /* 아이콘 색상도 진하게 */
+.sidebar-extra-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
 }
 
-.sub-item:hover {
-  color: #374151;
+.sidebar-extra-item.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
 }
 
-/* 저장 공간 및 푸터 */
+/* 푸터 */
 .sidebar-footer {
   margin-top: auto;
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.storage-clickable {
+/* 저장공간 카드 */
+.storage-wrapper {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 12px 14px;
   cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
 }
 
-.storage-clickable:hover .storage-text span {
-  color: #374151;
+.storage-wrapper:hover {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .storage-text {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-  color: #9ca3af;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
   margin-bottom: 8px;
 }
 
 .storage-val {
-  color: #374151;
+  color: rgba(255, 255, 255, 0.85);
   font-weight: 600;
 }
 
 .storage-bar {
   width: 100%;
-  height: 6px;
-  background-color: #e5e7eb;
-  border-radius: 10px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
   overflow: hidden;
-  margin-bottom: 20px;
 }
 
 .storage-bar .fill {
   height: 100%;
-  background-color: #003366;
-  border-radius: 10px;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  border-radius: 999px;
 }
 
-.logout-btn-outline {
-  width: 100%;
+/* 유저 프로필 */
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sidebar-user:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.sidebar-user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.sidebar-user-avatar-fallback {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1e3a6e, #3b82f6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.sidebar-user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-sub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+  margin-top: 1px;
+}
+
+.sidebar-logout-icon {
   background: none;
-  border: 1px solid #ef4444;
-  color: #ef4444;
+  border: none;
+  color: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.sidebar-logout-icon:hover {
+  color: rgba(239, 68, 68, 0.7);
+}
+
+.sidebar-login-btn {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.65);
   padding: 10px;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.15s;
 }
 
-.logout-btn-outline:hover {
-  background-color: #fef2f2;
+.sidebar-login-btn:hover {
+  background: rgba(255, 255, 255, 0.13);
 }
 
-/* 사이드바 하단 추가 메뉴 스타일 */
-.sidebar-extra-item {
-  font-size: 14px;
-  color: #9ca3af;
+/* 숨긴 기존 버튼 */
+.logout-btn-outline { display: none; }
+
+/* 접힌 사이드바 */
+.sidebar-minimized {
+  width: 50px;
+  height: 100%;
+  background: #0f172a;
+  border-right: none;
+  display: flex;
+  justify-content: center;
+  padding-top: 20px;
   cursor: pointer;
-  margin-bottom: 25px; /* 저장공간과의 간격 */
-  transition: all 0.2s;
-  font-weight: 500;
-  padding-left: 0; /* X축 정렬 유지 */
 }
 
-.sidebar-extra-item:hover {
-  color: #374151;
-}
-
-/* 활성화 시 네이비색으로 강조 */
-.sidebar-extra-item.active {
-  color: #003366;
-  font-weight: 700;
-}
-
-/* 기존 푸터 마진 조정 */
-.sidebar-footer {
-  margin-top: auto;
+.toggle-icon {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 18px;
+  font-weight: bold;
 }
