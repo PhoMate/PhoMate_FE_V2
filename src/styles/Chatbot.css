@@ -163,7 +163,7 @@
 }
 
 .msg-bubble-user {
-    background: linear-gradient(135deg, #1e3a6e, #3b82f6);
+    background: #003366;
     color: white;
     padding: 11px 16px;
     border-radius: 18px 18px 4px 18px;
@@ -266,7 +266,7 @@
 .save-finish-btn {
     width: 100%;
     padding: 13px;
-    background: linear-gradient(135deg, #1e3a6e, #3b82f6);
+    background: #003366;
     color: white;
     border: none;
     border-radius: 14px;
@@ -319,7 +319,7 @@
 .chat-send-btn {
     background: none;
     border: none;
-    color: #3b82f6;
+    color: #003366;
     font-weight: 800;
     font-size: 13px;
     cursor: pointer;
@@ -327,7 +327,7 @@
     transition: color 0.15s;
 }
 
-.chat-send-btn:hover { color: #1d4ed8; }
+.chat-send-btn:hover { color: #001a3d; }
 
 .chat-send-btn:disabled {
     opacity: 0.45;
@@ -499,7 +499,7 @@
     position: fixed;
     bottom: 28px;
     right: 40px;
-    background: linear-gradient(135deg, #1e3a6e, #3b82f6);
+    background: #003366;
     color: white;
     border: none;
     padding: 10px 24px;

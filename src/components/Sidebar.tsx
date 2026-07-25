@@ -12,6 +12,8 @@ type SidebarProps = {
     sharedFolders: string[];
     folderPhotoCounts?: Record<string, number>;
     sharedFolderPhotoCounts?: Record<string, number>;
+    folderIconsByName?: Record<string, string>;
+    sharedFolderIconsByName?: Record<string, string>;
     onNavClick: (type: string, target?: string) => void;
     onPlusClick: () => void;
     onLinkClick: () => void;
@@ -31,6 +33,8 @@ export default function Sidebar({
     sharedFolders,
     folderPhotoCounts = {},
     sharedFolderPhotoCounts = {},
+    folderIconsByName = {},
+    sharedFolderIconsByName = {},
     onNavClick,
     onPlusClick,
     onLinkClick,
@@ -123,7 +127,7 @@ export default function Sidebar({
                                 className={`sub-item ${isActive ? 'active' : ''}`}
                                 onClick={() => onNavClick('folder_child', folderName)}
                             >
-                                <div className="folder-thumb-placeholder">📁</div>
+                                <div className="folder-thumb-placeholder">{folderIconsByName[folderName] ?? '📁'}</div>
                                 <span className="folder-name">{folderName}</span>
                                 {count > 0 && <span className="folder-count">{count}</span>}
                             </div>
@@ -170,7 +174,7 @@ export default function Sidebar({
                                 className={`sub-item ${isActive ? 'active' : ''}`}
                                 onClick={() => onNavClick('shared_child', folderName)}
                             >
-                                <div className="folder-thumb-placeholder">👥</div>
+                                <div className="folder-thumb-placeholder">{sharedFolderIconsByName[folderName] ?? '👥'}</div>
                                 <span className="folder-name">{folderName}</span>
                                 {count > 0 && <span className="folder-count">{count}</span>}
                             </div>

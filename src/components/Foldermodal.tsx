@@ -3,24 +3,42 @@ import { X, Trash2, Calendar, Image as ImageIcon, HardDrive } from 'lucide-react
 import ActionModal from './Actionmodal';
 import '../styles/Foldermodal.css';
 
+const FOLDER_ICONS = [
+    '📁', '🖼️', '📷', '⭐', '❤️', '🔥',
+    '🎵', '🎬', '🎮', '🌈', '🌿', '🌊',
+    '✈️', '🍕', '🎁', '💼', '📚', '🏃',
+    '🐶', '🐱', '🌸', '🏔️', '🎉', '🏠',
+    '💡', '🎨', '🌙', '💎', '🎯', '🌻',
+];
+
 interface FolderModalProps {
   mode?: 'create' | 'settings';
   folderName: string;
+  currentIcon?: string;
   photoCount?: number;
   createdAt?: string;
   usedStorage?: string;
   onSave?: (name: string) => boolean | void | Promise<boolean | void>;
+  onIconChange?: (icon: string) => void;
   onDelete?: () => void | Promise<void>;
   onClose: () => void;
 }
 
-export default function FolderModal({ mode = 'settings', folderName, photoCount = 0, createdAt = "2026.02.20", usedStorage = '0 MB', onSave, onDelete, onClose }: FolderModalProps) {
+export default function FolderModal({ mode = 'settings', folderName, currentIcon = '📁', photoCount = 0, createdAt = "2026.02.20", usedStorage = '0 MB', onSave, onIconChange, onDelete, onClose }: FolderModalProps) {
   const [inputName, setInputName] = useState(folderName);
+  const [selectedIcon, setSelectedIcon] = useState(currentIcon);
+  const [isIconExpanded, setIsIconExpanded] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
+  const handleIconSelect = (icon: string) => {
+      setSelectedIcon(icon);
+      onIconChange?.(icon);
+  };
 
   useEffect(() => {
     setInputName(folderName);
-  }, [folderName, mode]);
+    setSelectedIcon(currentIcon);
+  }, [folderName, currentIcon, mode]);
 
   const handleSave = async () => {
     const result = await Promise.resolve(onSave?.(inputName));
@@ -64,6 +82,29 @@ export default function FolderModal({ mode = 'settings', folderName, photoCount 
               {mode === 'create' ? '생성' : '변경'}
             </button>
           </div>
+        </div>
+
+        <div className="section-container">
+          <label className="section-label">폴더 아이콘</label>
+          <div className="folder-icon-grid">
+            {(isIconExpanded ? FOLDER_ICONS : FOLDER_ICONS.slice(0, 6)).map((icon) => (
+              <button
+                key={icon}
+                type="button"
+                className={`folder-icon-btn${selectedIcon === icon ? ' selected' : ''}`}
+                onClick={() => handleIconSelect(icon)}
+              >
+                {icon}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="folder-icon-expand-btn"
+            onClick={() => setIsIconExpanded((v) => !v)}
+          >
+            {isIconExpanded ? '▴ 접기' : '▾ 더보기'}
+          </button>
         </div>
 
         {mode === 'settings' && (

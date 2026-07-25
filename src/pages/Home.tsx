@@ -201,6 +201,12 @@ export default function Home() {
     const [folderPhotoIdsByName, setFolderPhotoIdsByName] = useState<Record<string, string[]>>(
         savedFolderData?.folderPhotoIdsByName ?? { '폴더 1': [] }
     );
+    const [folderIconsByName, setFolderIconsByName] = useState<Record<string, string>>(
+        savedFolderData?.folderIconsByName ?? { '폴더 1': '📁' }
+    );
+    const [sharedFolderIconsByName, setSharedFolderIconsByName] = useState<Record<string, string>>(
+        savedFolderData?.sharedFolderIconsByName ?? { '공유 폴더 1': '👥' }
+    );
     const [sharedFolderPhotosByName, setSharedFolderPhotosByName] = useState<Record<string, SharedFolderPhoto[]>>(
         savedFolderData?.sharedFolderPhotosByName ?? { '공유 폴더 1': [] }
     );
@@ -254,11 +260,13 @@ export default function Home() {
             folders,
             folderCreatedAtByName,
             folderPhotoIdsByName,
+            folderIconsByName,
             sharedFolders,
             sharedFolderCreatedAtByName,
-            sharedFolderPhotosByName
+            sharedFolderPhotosByName,
+            sharedFolderIconsByName,
         });
-    }, [folders, folderCreatedAtByName, folderPhotoIdsByName, sharedFolders, sharedFolderCreatedAtByName, sharedFolderPhotosByName]);
+    }, [folders, folderCreatedAtByName, folderPhotoIdsByName, folderIconsByName, sharedFolders, sharedFolderCreatedAtByName, sharedFolderPhotosByName, sharedFolderIconsByName]);
 
     const toggleSelectPhoto = (photoId: string) => {
     setSelectedPhotoIds((prev) => {
@@ -948,6 +956,7 @@ useEffect(() => {
             setFolderStorageByName((prev) => ({ ...prev, [trimmed]: '0 MB' }));
             setFolderCreatedAtByName((prev) => ({ ...prev, [trimmed]: todayDateText }));
             setFolderPhotoIdsByName((prev) => ({ ...prev, [trimmed]: [] }));
+            setFolderIconsByName((prev) => ({ ...prev, [trimmed]: prev[trimmed] ?? '📁' }));
             setSelectedFolder(trimmed);
             setView('folder_detail');
             return true;
@@ -960,6 +969,7 @@ useEffect(() => {
         setFolderStorageByName((prev) => { const next = { ...prev }; next[trimmed] = next[sourceName] ?? '0 MB'; delete next[sourceName]; return next; });
         setFolderPhotoIdsByName((prev) => { const next = { ...prev }; next[trimmed] = next[sourceName] ?? []; delete next[sourceName]; return next; });
         setFolderCreatedAtByName((prev) => { const next = { ...prev }; next[trimmed] = next[sourceName] ?? todayDateText; delete next[sourceName]; return next; });
+        setFolderIconsByName((prev) => { const next = { ...prev }; next[trimmed] = next[sourceName] ?? '📁'; delete next[sourceName]; return next; });
         if (selectedFolder === sourceName) setSelectedFolder(trimmed);
         setSelectedFolderForSettings(trimmed);
         return true;
@@ -971,6 +981,7 @@ useEffect(() => {
         setFolderStorageByName((prev) => { const next = { ...prev }; delete next[target]; return next; });
         setFolderPhotoIdsByName((prev) => { const next = { ...prev }; delete next[target]; return next; });
         setFolderCreatedAtByName((prev) => { const next = { ...prev }; delete next[target]; return next; });
+        setFolderIconsByName((prev) => { const next = { ...prev }; delete next[target]; return next; });
         if (selectedFolder === target) { setSelectedFolder(null); setView('folder_list'); }
     };
 
@@ -1180,6 +1191,8 @@ useEffect(() => {
                     folders={folders}
                     sharedFolders={sharedFolders}
                     folderPhotoCounts={Object.fromEntries(folders.map((f) => [f, (folderPhotoIdsByName[f] ?? []).filter((id) => myPhotoMap.has(id)).length]))}
+                    folderIconsByName={folderIconsByName}
+                    sharedFolderIconsByName={sharedFolderIconsByName}
                     sharedFolderPhotoCounts={Object.fromEntries(sharedFolders.map((f) => [f, (sharedFolderPhotosByName[f] ?? []).length]))}
                     onNavClick={handleNavigate}
                     onPlusClick={() => { setFolderModalMode('create'); setSelectedFolderForSettings('새 폴더'); setIsFolderModalOpen(true); }}
@@ -1343,10 +1356,12 @@ useEffect(() => {
                 <FolderModal
                     mode={folderModalMode}
                     folderName={selectedFolderForSettings}
+                    currentIcon={folderIconsByName[selectedFolderForSettings] ?? '📁'}
                     photoCount={(folderPhotoIdsByName[selectedFolderForSettings] ?? []).filter((id) => myPhotoMap.has(id)).length}
                     createdAt={folderCreatedAtByName[selectedFolderForSettings] ?? todayDateText}
                     usedStorage={folderStorageByName[selectedFolderForSettings] ?? '0 MB'}
                     onSave={handleSaveFolder}
+                    onIconChange={(icon) => setFolderIconsByName((prev) => ({ ...prev, [selectedFolderForSettings]: icon }))}
                     onDelete={handleDeleteFolder}
                     onClose={() => setIsFolderModalOpen(false)}
                 />
@@ -1356,10 +1371,12 @@ useEffect(() => {
                 <SharedFolderModal
                     mode={sharedModalMode}
                     folderName={selectedSharedFolderForSettings}
+                    currentIcon={sharedFolderIconsByName[selectedSharedFolderForSettings] ?? '👥'}
                     photoCount={(sharedFolderPhotosByName[selectedSharedFolderForSettings] ?? []).length}
                     createdAt={sharedFolderCreatedAtByName[selectedSharedFolderForSettings] ?? todayDateText}
                     usedStorage={sharedFolderStorageByName[selectedSharedFolderForSettings] ?? '0 MB'}
                     onSave={handleSaveSharedFolder}
+                    onIconChange={(icon) => setSharedFolderIconsByName((prev) => ({ ...prev, [selectedSharedFolderForSettings]: icon }))}
                     onLeave={handleLeaveSharedFolder}
                     onClose={() => setIsSharedModalOpen(false)}
                 />

@@ -201,3 +201,54 @@
     color: #ef4444;
     font-size: 16px;
 }
+
+.folder-icon-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+}
+
+.folder-icon-btn {
+    aspect-ratio: 1;
+    font-size: 22px;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s, border-color 0.12s, transform 0.1s;
+}
+
+.folder-icon-btn:hover {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    transform: scale(1.08);
+}
+
+.folder-icon-btn.selected {
+    background: #eff6ff;
+    border-color: #003366;
+    box-shadow: 0 0 0 2px rgba(0, 51, 102, 0.15);
+}
+
+.folder-icon-expand-btn {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 0;
+    text-align: center;
+    transition: color 0.15s;
+}
+
+.folder-icon-expand-btn:hover {
+    color: #003366;
+}
+

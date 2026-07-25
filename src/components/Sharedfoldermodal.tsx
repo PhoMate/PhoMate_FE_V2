@@ -5,6 +5,14 @@ import { authFetch } from '../api/auth';
 import { getMyMember } from '../api/member';
 import '../styles/Sharedfoldermodal.css';
 
+const FOLDER_ICONS = [
+    '👥', '🖼️', '📷', '⭐', '❤️', '🔥',
+    '🎵', '🎬', '🎮', '🌈', '🌿', '🌊',
+    '✈️', '🍕', '🎁', '💼', '📚', '🏃',
+    '🐶', '🐱', '🌸', '🏔️', '🎉', '🏠',
+    '💡', '🎨', '🌙', '💎', '🎯', '🌻',
+];
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 function toApiUrl(path: string): string {
@@ -385,7 +393,9 @@ interface SharedFolderModalProps {
   photoCount?: number;
   createdAt?: string;
   usedStorage?: string;
+  currentIcon?: string;
   onSave: (nextName: string) => boolean | void | Promise<boolean | void>;
+  onIconChange?: (icon: string) => void;
   onLeave?: () => void | Promise<void>;
   onClose: () => void;
 }
@@ -408,15 +418,19 @@ export default function SharedFolderModal({
   mode = 'settings',
   folderId,
   folderName,
+  currentIcon = '👥',
   photoCount = 0,
   createdAt = '-',
   usedStorage = '0 MB',
   onSave,
+  onIconChange,
   onLeave,
   onClose
 }: SharedFolderModalProps) {
   const storageScopedKey = folderId ? String(folderId) : folderName;
   const [inputName, setInputName] = useState(folderName);
+  const [selectedIcon, setSelectedIcon] = useState(currentIcon);
+  const [isIconExpanded, setIsIconExpanded] = useState(false);
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<SharedFolderRole>('READ');
@@ -437,7 +451,8 @@ export default function SharedFolderModal({
 
   useEffect(() => {
     setInputName(folderName);
-  }, [folderName, mode]);
+    setSelectedIcon(currentIcon);
+  }, [folderName, currentIcon, mode]);
 
   useEffect(() => {
     if (typeof folderId === 'number' && folderId > 0) {
@@ -823,6 +838,29 @@ export default function SharedFolderModal({
                   placeholder="공유 폴더 이름"
                 />
               </div>
+            </div>
+
+            <div className="section-container">
+              <label className="section-label">폴더 아이콘</label>
+              <div className="folder-icon-grid">
+                {(isIconExpanded ? FOLDER_ICONS : FOLDER_ICONS.slice(0, 6)).map((icon) => (
+                  <button
+                    key={icon}
+                    type="button"
+                    className={`folder-icon-btn${selectedIcon === icon ? ' selected' : ''}`}
+                    onClick={() => { setSelectedIcon(icon); onIconChange?.(icon); }}
+                  >
+                    {icon}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="folder-icon-expand-btn"
+                onClick={() => setIsIconExpanded((v) => !v)}
+              >
+                {isIconExpanded ? '▴ 접기' : '▾ 더보기'}
+              </button>
             </div>
 
             {mode === 'create' && (
