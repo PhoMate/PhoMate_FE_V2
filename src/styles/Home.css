@@ -40,6 +40,92 @@
     letter-spacing: -0.1px;
 }
 
+.content-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.select-mode-btn {
+    border: 1.5px solid #cbd5e1;
+    background: #f8fafc;
+    color: #475569;
+    border-radius: 10px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.select-mode-btn:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    color: #1e293b;
+}
+
+.select-mode-btn.active {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    color: #334155;
+}
+
+.select-action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #0f172a;
+    border-radius: 14px;
+    padding: 12px 20px;
+    margin-bottom: 14px;
+    gap: 12px;
+}
+
+.select-action-count {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.select-action-btns {
+    display: flex;
+    gap: 8px;
+}
+
+.select-action-all-btn {
+    background: transparent;
+    color: #cbd5e1;
+    border: 1.5px solid #475569;
+    border-radius: 10px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.select-action-all-btn:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: #94a3b8;
+    color: #f1f5f9;
+}
+
+.select-action-delete-btn {
+    background: #800020;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.select-action-delete-btn:hover { opacity: 0.88; }
+.select-action-delete-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .folder-add-photo-btn {
     border: none;
     background: linear-gradient(135deg, #1e3a6e, #3b82f6);

@@ -1217,9 +1217,19 @@ useEffect(() => {
                                     : subNav === 'recent' ? '최근 업로드'
                                     : '홈'}
                             </h2>
-                            {(isFolderDetailView || isSharedDetailView) && (
-                                <button className="folder-add-photo-btn" onClick={openAddPhotosModal}>+ 사진 추가</button>
-                            )}
+                            <div className="content-header-actions">
+                                {(view === 'home' || view === 'folder_detail' || view === 'shared_detail') && !isChatSearchView && (
+                                    <button
+                                        className={`select-mode-btn${isSelectMode ? ' active' : ''}`}
+                                        onClick={() => { if (isSelectMode) exitSelectMode(); else setIsSelectMode(true); }}
+                                    >
+                                        {isSelectMode ? '취소' : '선택'}
+                                    </button>
+                                )}
+                                {(isFolderDetailView || isSharedDetailView) && (
+                                    <button className="folder-add-photo-btn" onClick={openAddPhotosModal}>+ 사진 추가</button>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -1243,6 +1253,32 @@ useEffect(() => {
                         />
                     ) : (view === 'home' || view === 'folder_detail' || view === 'shared_detail') ? (
                         <>
+                            {isSelectMode && (
+                                <div className="select-action-bar">
+                                    <span className="select-action-count">{selectedPhotoIds.size}장 선택됨</span>
+                                    <div className="select-action-btns">
+                                        <button
+                                            className="select-action-all-btn"
+                                            onClick={() => {
+                                                if (selectedPhotoIds.size === currentViewPhotos.length) {
+                                                    setSelectedPhotoIds(new Set());
+                                                } else {
+                                                    setSelectedPhotoIds(new Set(currentViewPhotos.map((p) => p.id)));
+                                                }
+                                            }}
+                                        >
+                                            {selectedPhotoIds.size === currentViewPhotos.length ? '전체 해제' : '전체 선택'}
+                                        </button>
+                                        <button
+                                            className="select-action-delete-btn"
+                                            disabled={selectedPhotoIds.size === 0}
+                                            onClick={() => void handleDeleteSelected()}
+                                        >
+                                            삭제
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                             <div className="photo-grid">
                                 {currentViewPhotos.map((photo, index) => (
                                     <PhotoCard
