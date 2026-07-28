@@ -5,9 +5,6 @@ type SidebarProps = {
     isOpen: boolean;
     onToggle: () => void;
     activeNav?: string;
-    remainingStorageText?: string;
-    totalStorageText?: string;
-    storagePercent?: number;
     folders: string[];
     sharedFolders: string[];
     folderPhotoCounts?: Record<string, number>;
@@ -17,7 +14,6 @@ type SidebarProps = {
     onNavClick: (type: string, target?: string) => void;
     onPlusClick: () => void;
     onLinkClick: () => void;
-    onStorageClick: () => void;
     onFolderSettingsClick: (name: string) => void;
     onSharedFolderSettingsClick: (name: string) => void;
 };
@@ -26,9 +22,6 @@ export default function Sidebar({
     isOpen,
     onToggle,
     activeNav,
-    remainingStorageText = '50.0 GB',
-    totalStorageText = '50.0 GB',
-    storagePercent = 0,
     folders,
     sharedFolders,
     folderPhotoCounts = {},
@@ -38,7 +31,6 @@ export default function Sidebar({
     onNavClick,
     onPlusClick,
     onLinkClick,
-    onStorageClick,
     onFolderSettingsClick,
     onSharedFolderSettingsClick,
 }: SidebarProps) {
@@ -204,17 +196,6 @@ export default function Sidebar({
                         <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
                     </svg>
                     휴지통
-                </div>
-
-                {/* 저장공간 카드 */}
-                <div className="storage-wrapper" onClick={onStorageClick}>
-                    <div className="storage-text">
-                        <span>저장 공간</span>
-                        <span className="storage-val">{remainingStorageText} / {totalStorageText}</span>
-                    </div>
-                    <div className="storage-bar">
-                        <div className="fill" style={{ width: `${storagePercent}%` }} />
-                    </div>
                 </div>
 
             </div>

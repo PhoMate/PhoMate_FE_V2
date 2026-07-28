@@ -55,6 +55,9 @@ export default function Navbar({
                         Google로 로그인
                     </button>
                 ) : null}
+                {isLoggedIn && (
+                    <button className="navbar-logout-btn" onClick={onLogoutClick}>로그아웃</button>
+                )}
             </div>
             
             <div className="nav-center">

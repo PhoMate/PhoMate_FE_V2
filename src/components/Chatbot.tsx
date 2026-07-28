@@ -139,6 +139,7 @@ export default function Chatbot({
     };
 
     const handleTabChange = (tab: ChatTab) => {
+        if (tab === 'search') resetEditState();
         setActiveTab(tab);
         setErrorMessage('');
     };

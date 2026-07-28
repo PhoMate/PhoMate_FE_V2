@@ -476,11 +476,7 @@ function isDoneEvent(eventType: string, data: string): boolean {
 function isHttp2ProtocolError(error: unknown): boolean {
     if (!(error instanceof Error)) return false;
     const message = error.message || '';
-    return (
-        message.includes('ERR_HTTP2_PROTOCOL_ERROR') ||
-        message.includes('TypeError: Failed to fetch') ||
-        message.includes('NetworkError')
-    );
+    return message.includes('ERR_HTTP2_PROTOCOL_ERROR');
 }
 
 async function consumeSearchStreamResponse(

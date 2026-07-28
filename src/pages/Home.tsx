@@ -15,7 +15,6 @@ import ActionModal from '../components/Actionmodal';
 import DeleteScopeModal from '../components/DeleteScopeModal';
 import UploadModal from '../components/Uploadmodal';
 import UploadStatusPanel from '../components/Uploadstatuspanel';
-import StorageUsageModal from '../components/StorageUsageModal';
 import { Photo } from '../types';
 import {
     beginGoogleLogin,
@@ -185,6 +184,7 @@ export default function Home() {
     };
 
     const [isLoggedIn, setIsLoggedIn] = useState<boolean>(DEV_BYPASS_AUTH || isAuthenticated());
+    const [isOAuthPending, setIsOAuthPending] = useState<boolean>(() => !DEV_BYPASS_AUTH && new URLSearchParams(window.location.search).has('code'));
     const [view, setView] = useState<ViewType>('home');
     const [subNav, setSubNav] = useState<'home' | 'favorites' | 'recent'>('home');
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
@@ -229,7 +229,6 @@ export default function Home() {
     const [addPhotosConfirm, setAddPhotosConfirm] = useState<AddPhotosConfirmState | null>(null);
     const [notifications, setNotifications] = useState<HomeNotification[]>([]);
     const [modalConfig, setModalConfig] = useState<{ type: 'restore' | 'delete_confirm' | 'alert'; message: string } | null>(null);
-    const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
     const [deleteScopeTarget, setDeleteScopeTarget] = useState<{ photoIds: string[]; fromPreview: boolean } | null>(null);
     const [myPhotos, setMyPhotos] = useState<Photo[]>([]);
     const [chatSearchResultPhotos, setChatSearchResultPhotos] = useState<Photo[] | null>(null);
@@ -400,6 +399,9 @@ useEffect(() => {
                 if (!mounted) return;
                 const message = error instanceof Error ? error.message : '로그인 처리 중 오류가 발생했습니다.';
                 window.alert(message);
+            })
+            .finally(() => {
+                if (mounted) setIsOAuthPending(false);
             });
         return () => { mounted = false; };
     }, []);
@@ -935,6 +937,7 @@ useEffect(() => {
     };
 
     const handleNavigate = (type: string, target?: string) => {
+        exitSelectMode();
         if (type === 'home') { setView('home'); setSubNav('home'); setSelectedFolder(null); }
         else if (type === 'favorites') { setView('home'); setSubNav('favorites'); setSelectedFolder(null); }
         else if (type === 'recent') { setView('home'); setSubNav('recent'); setSelectedFolder(null); }
@@ -1062,13 +1065,6 @@ useEffect(() => {
         [];
 
     const isChatSearchView = view === 'home' && chatSearchResultPhotos !== null;
-    const TOTAL_STORAGE_BYTES = 50 * 1024 * 1024 * 1024;
-    const totalUsedStorageBytes = Object.values(photoSizeBytesById).reduce((sum, size) => sum + size, 0);
-    const remainingStorageBytes = Math.max(TOTAL_STORAGE_BYTES - totalUsedStorageBytes, 0);
-    const storagePercent = Math.min((totalUsedStorageBytes / TOTAL_STORAGE_BYTES) * 100, 100);
-    const usedStorageText = formatBytesToStorageText(totalUsedStorageBytes);
-    const remainingStorageText = formatBytesToStorageText(remainingStorageBytes);
-    const totalStorageText = formatBytesToStorageText(TOTAL_STORAGE_BYTES);
 
     const isFolderDetailView = view === 'folder_detail' && !!selectedFolder;
     const isSharedDetailView = view === 'shared_detail' && !!selectedFolder;
@@ -1169,6 +1165,16 @@ useEffect(() => {
         }
     };
 
+    if (isOAuthPending) {
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: '16px', background: '#f4f7fa' }}>
+                <div style={{ width: '36px', height: '36px', border: '3px solid #e2e8f0', borderTop: '3px solid #003366', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                <span style={{ fontSize: '15px', color: '#64748b', fontWeight: 600 }}>로그인 처리 중...</span>
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+        );
+    }
+
     return (
         <div className="home-container">
             <Navbar
@@ -1197,10 +1203,6 @@ useEffect(() => {
                     onNavClick={handleNavigate}
                     onPlusClick={() => { setFolderModalMode('create'); setSelectedFolderForSettings('새 폴더'); setIsFolderModalOpen(true); }}
                     onLinkClick={() => { setSharedModalMode('create'); setSelectedSharedFolderForSettings(`공유 폴더 ${sharedFolders.length + 1}`); setIsSharedModalOpen(true); }}
-                    remainingStorageText={remainingStorageText}
-                    totalStorageText={totalStorageText}
-                    storagePercent={storagePercent}
-                    onStorageClick={() => setIsStorageModalOpen(true)}
                     onFolderSettingsClick={(name) => { setFolderModalMode('settings'); setSelectedFolderForSettings(name); setIsFolderModalOpen(true); }}
                     onSharedFolderSettingsClick={(name) => { setSharedModalMode('settings'); setSelectedSharedFolderForSettings(name); setIsSharedModalOpen(true); }}
                 />
@@ -1462,19 +1464,7 @@ useEffect(() => {
                 />
             )}
 
-            {isStorageModalOpen && (
-                <StorageUsageModal
-                    totalStorageText={totalStorageText}
-                    usedStorageText={usedStorageText}
-                    remainingStorageText={remainingStorageText}
-                    storagePercent={storagePercent}
-                    folderUsages={folders.map((name) => ({ name, storage: folderStorageByName[name] ?? '0 MB' }))}
-                    sharedFolderUsages={sharedFolders.map((name) => ({ name, storage: sharedFolderStorageByName[name] ?? '0 MB' }))}
-                    onClose={() => setIsStorageModalOpen(false)}
-                />
-            )}
-
-            {deleteScopeTarget && selectedFolder && (
+{deleteScopeTarget && selectedFolder && (
                 <DeleteScopeModal
                     photoCount={deleteScopeTarget.photoIds.length}
                     folderName={selectedFolder}
