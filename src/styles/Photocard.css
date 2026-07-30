@@ -9,6 +9,8 @@
 
 /* 카드 */
 .photo-card {
+    display: inline-block;
+    width: 100%;
     border-radius: 16px;
     overflow: hidden;
     background: #111827;

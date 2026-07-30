@@ -23,7 +23,7 @@ import {
     isAuthenticated
 } from '../api/auth';
 import { createPhoto, getAlbumLatest, movePhotoToTrash } from '../api/photo';
-import { type ChatFolderPreviewPhoto } from '../api/chat';
+import { type ChatFolderPreviewPhoto, getAllFolders } from '../api/chat';
 import { commitPhotoUpload, initPhotoUpload, putFileToPresignedUrl } from '../api/upload';
 import { getMyMember, type MemberProfile } from '../api/member';
 import { extractExifDateMs } from '../utils/exif';
@@ -189,27 +189,27 @@ export default function Home() {
     const [view, setView] = useState<ViewType>('home');
     const [subNav, setSubNav] = useState<'home' | 'favorites' | 'recent'>('home');
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-    const [folders, setFolders] = useState<string[]>(savedFolderData?.folders ?? ['폴더 1']);
-    const [folderStorageByName, setFolderStorageByName] = useState<Record<string, string>>({ '폴더 1': '0 MB' });
+    const [folders, setFolders] = useState<string[]>(savedFolderData?.folders ?? []);
+    const [folderStorageByName, setFolderStorageByName] = useState<Record<string, string>>({});
     const [folderCreatedAtByName, setFolderCreatedAtByName] = useState<Record<string, string>>(
-        savedFolderData?.folderCreatedAtByName ?? { '폴더 1': todayDateText }
+        savedFolderData?.folderCreatedAtByName ?? {}
     );
-    const [sharedFolders, setSharedFolders] = useState<string[]>(savedFolderData?.sharedFolders ?? ['공유 폴더 1']);
-    const [sharedFolderStorageByName, setSharedFolderStorageByName] = useState<Record<string, string>>({ '공유 폴더 1': '0 MB' });
+    const [sharedFolders, setSharedFolders] = useState<string[]>(savedFolderData?.sharedFolders ?? []);
+    const [sharedFolderStorageByName, setSharedFolderStorageByName] = useState<Record<string, string>>({});
     const [sharedFolderCreatedAtByName, setSharedFolderCreatedAtByName] = useState<Record<string, string>>(
-        savedFolderData?.sharedFolderCreatedAtByName ?? { '공유 폴더 1': todayDateText }
+        savedFolderData?.sharedFolderCreatedAtByName ?? {}
     );
     const [folderPhotoIdsByName, setFolderPhotoIdsByName] = useState<Record<string, string[]>>(
-        savedFolderData?.folderPhotoIdsByName ?? { '폴더 1': [] }
+        savedFolderData?.folderPhotoIdsByName ?? {}
     );
     const [folderIconsByName, setFolderIconsByName] = useState<Record<string, string>>(
-        savedFolderData?.folderIconsByName ?? { '폴더 1': '📁' }
+        savedFolderData?.folderIconsByName ?? {}
     );
     const [sharedFolderIconsByName, setSharedFolderIconsByName] = useState<Record<string, string>>(
-        savedFolderData?.sharedFolderIconsByName ?? { '공유 폴더 1': '👥' }
+        savedFolderData?.sharedFolderIconsByName ?? {}
     );
     const [sharedFolderPhotosByName, setSharedFolderPhotosByName] = useState<Record<string, SharedFolderPhoto[]>>(
-        savedFolderData?.sharedFolderPhotosByName ?? { '공유 폴더 1': [] }
+        savedFolderData?.sharedFolderPhotosByName ?? {}
     );
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isChatOpen, setIsChatOpen] = useState(true);
@@ -219,7 +219,7 @@ export default function Home() {
     const [selectedFolderForSettings, setSelectedFolderForSettings] = useState('새 폴더');
     const [isSharedModalOpen, setIsSharedModalOpen] = useState(false);
     const [sharedModalMode, setSharedModalMode] = useState<'create' | 'settings'>('settings');
-    const [selectedSharedFolderForSettings, setSelectedSharedFolderForSettings] = useState('공유 폴더 1');
+    const [selectedSharedFolderForSettings, setSelectedSharedFolderForSettings] = useState('');
     const [isNotiOpen, setIsNotiOpen] = useState(false);
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -601,6 +601,16 @@ useEffect(() => {
             const profile = await loadMyProfile();
             if (!mounted || !profile) return;
             await loadAlbum(); // 초기 로드 (cursor 없음)
+
+            // DB에서 실제 폴더 목록 조회
+            const apiFolders = await getAllFolders();
+            if (!mounted) return;
+
+            const personal = apiFolders.filter((f) => f.folderType === 'PERSONAL').map((f) => f.folderName);
+            const shared   = apiFolders.filter((f) => f.folderType === 'SHARED').map((f) => f.folderName);
+
+            setFolders(personal.length > 0 ? personal : []);
+            setSharedFolders(shared.length > 0 ? shared : []);
         })();
         return () => { mounted = false; };
     }, [isLoggedIn]);

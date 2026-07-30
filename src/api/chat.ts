@@ -483,30 +483,43 @@ export type FolderSummary = {
     folderType: 'PERSONAL' | 'SHARED';
 };
 
+function parseFolderItems(payload: unknown): FolderSummary[] {
+    const items: unknown[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray((payload as JsonRecord)?.items)
+            ? ((payload as JsonRecord).items as unknown[])
+            : Array.isArray((payload as JsonRecord)?.data)
+                ? ((payload as JsonRecord).data as unknown[])
+                : [];
+
+    return items
+        .map((raw) => {
+            const item = raw as JsonRecord;
+            const folderId = asNumber(item.folderId) || asNumber(item.id) || asNumber(item.folder_id);
+            const folderName = asText(item.folderName) || asText(item.name) || asText(item.title);
+            const typeRaw = asText(item.type ?? item.folderType).toUpperCase();
+            const folderType: 'PERSONAL' | 'SHARED' = typeRaw === 'SHARED' ? 'SHARED' : 'PERSONAL';
+            return { folderId, folderName, folderType };
+        })
+        .filter((f) => f.folderId > 0 && f.folderName.length > 0);
+}
+
+export async function getAllFolders(): Promise<FolderSummary[]> {
+    try {
+        const response = await authFetch(toApiUrl('/api/folders'), { method: 'GET' });
+        if (!response.ok) return [];
+        return parseFolderItems(await response.json());
+    } catch {
+        return [];
+    }
+}
+
 export async function getFolderById(targetId: number): Promise<FolderSummary | null> {
     try {
         const response = await authFetch(toApiUrl('/api/folders'), { method: 'GET' });
         if (!response.ok) return null;
-        const payload = (await response.json()) as unknown;
-
-        const items: unknown[] = Array.isArray(payload)
-            ? payload
-            : Array.isArray((payload as JsonRecord)?.items)
-                ? ((payload as JsonRecord).items as unknown[])
-                : Array.isArray((payload as JsonRecord)?.data)
-                    ? ((payload as JsonRecord).data as unknown[])
-                    : [];
-
-        for (const raw of items) {
-            const item = raw as JsonRecord;
-            const id = asNumber(item.folderId) || asNumber(item.id) || asNumber(item.folder_id);
-            if (id !== targetId) continue;
-            const name = asText(item.folderName) || asText(item.name) || asText(item.title);
-            const typeRaw = asText(item.type ?? item.folderType).toUpperCase();
-            const folderType: 'PERSONAL' | 'SHARED' = typeRaw === 'SHARED' ? 'SHARED' : 'PERSONAL';
-            return { folderId: id, folderName: name, folderType };
-        }
-        return null;
+        const all = parseFolderItems(await response.json());
+        return all.find((f) => f.folderId === targetId) ?? null;
     } catch {
         return null;
     }
