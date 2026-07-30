@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import PhotoCard from './Photocard';
 import ActionModal from './Actionmodal';
 import { Photo } from '../types';
@@ -15,6 +15,50 @@ type TrashViewProps = {
 export default function TrashView({ isLoggedIn, onChanged, onUnauthorized }: TrashViewProps) {
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const isDragSelectingRef = useRef(false);
+    const dragSelectActionRef = useRef<'add' | 'remove'>('add');
+    const dragProcessedIdsRef = useRef<Set<string>>(new Set());
+
+    const applyDragSelect = (photoId: string) => {
+        if (!isDragSelectingRef.current) return;
+        if (dragProcessedIdsRef.current.has(photoId)) return;
+        dragProcessedIdsRef.current.add(photoId);
+        setSelectedIds((prev) =>
+            dragSelectActionRef.current === 'add'
+                ? prev.includes(photoId) ? prev : [...prev, photoId]
+                : prev.filter((id) => id !== photoId)
+        );
+    };
+
+    const startDragSelect = (photoId: string, currentlySelected: boolean) => {
+        const action = currentlySelected ? 'remove' : 'add';
+        dragSelectActionRef.current = action;
+        dragProcessedIdsRef.current = new Set([photoId]);
+        isDragSelectingRef.current = true;
+        setSelectedIds((prev) =>
+            action === 'add'
+                ? prev.includes(photoId) ? prev : [...prev, photoId]
+                : prev.filter((id) => id !== photoId)
+        );
+        const stop = () => {
+            isDragSelectingRef.current = false;
+            dragProcessedIdsRef.current = new Set();
+            document.removeEventListener('pointerup', stop);
+        };
+        document.addEventListener('pointerup', stop);
+    };
+
+    useEffect(() => {
+        const onTouchMove = (e: TouchEvent) => {
+            if (!isDragSelectingRef.current) return;
+            const touch = e.touches[0];
+            const el = document.elementFromPoint(touch.clientX, touch.clientY);
+            const card = el?.closest('[data-photo-id]') as HTMLElement | null;
+            if (card?.dataset.photoId) applyDragSelect(card.dataset.photoId);
+        };
+        document.addEventListener('touchmove', onTouchMove, { passive: true });
+        return () => document.removeEventListener('touchmove', onTouchMove);
+    }, []);
     const [modalConfig, setModalConfig] = useState<{type: 'restore' | 'delete_confirm' | 'alert', message: string} | null>(null);
     const [trashPhotos, setTrashPhotos] = useState<Photo[]>([]);
 
@@ -167,17 +211,30 @@ export default function TrashView({ isLoggedIn, onChanged, onUnauthorized }: Tra
         if (onChanged) onChanged();
     };
 
+    const COL = 4;
+    const cols: Photo[][] = Array.from({ length: COL }, () => []);
+    trashPhotos.forEach((photo, i) => cols[i % COL].push(photo));
+
     return (
         <div className="trash-view-container">
-            <div className="photo-grid">
-                {trashPhotos.map((photo) => (
-                    <PhotoCard 
-                        key={photo.id} 
-                        photo={photo} 
-                        isSelectMode={isSelectMode}
-                        isSelected={selectedIds.includes(photo.id)}
-                        onSelect={() => toggleSelect(photo.id)}
-                    />
+            <div className="photo-masonry">
+                {cols.map((col, ci) => (
+                    <div key={ci} className="photo-masonry-col">
+                        {col.map((photo) => (
+                            <PhotoCard
+                                key={photo.id}
+                                photo={photo}
+                                isSelectMode={isSelectMode}
+                                isSelected={selectedIds.includes(photo.id)}
+                                onSelect={() => toggleSelect(photo.id)}
+                                onLongPress={() => {
+                                    if (!isSelectMode) setIsSelectMode(true);
+                                    startDragSelect(photo.id, selectedIds.includes(photo.id));
+                                }}
+                                onDragSelectEnter={() => applyDragSelect(photo.id)}
+                            />
+                        ))}
+                    </div>
                 ))}
             </div>
 

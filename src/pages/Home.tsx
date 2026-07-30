@@ -234,7 +234,6 @@ export default function Home() {
     const [deleteScopeTarget, setDeleteScopeTarget] = useState<{ photoIds: string[]; fromPreview: boolean } | null>(null);
     const [myPhotos, setMyPhotos] = useState<Photo[]>([]);
     const [chatSearchResultPhotos, setChatSearchResultPhotos] = useState<Photo[] | null>(null);
-    const [chatSearchQuery, setChatSearchQuery] = useState('');
     const [photoSizeBytesById, setPhotoSizeBytesById] = useState<Record<string, number>>(loadPhotoSizesFromStorage);
     const [memberProfile, setMemberProfile] = useState<MemberProfile | null>(null);
 
@@ -255,7 +254,56 @@ export default function Home() {
         onCancel: () => void;
     } | null>(null);
     const [likedPhotoIds, setLikedPhotoIds] = useState<Set<string>>(new Set());
-    const isDraggingRef = useRef(false); // 드래그 중 여부
+    const isDraggingRef = useRef(false);
+
+    const isDragSelectingRef = useRef(false);
+    const dragSelectActionRef = useRef<'add' | 'remove'>('add');
+    const dragProcessedIdsRef = useRef<Set<string>>(new Set());
+
+    const applyDragSelect = (photoId: string) => {
+        if (!isDragSelectingRef.current) return;
+        if (dragProcessedIdsRef.current.has(photoId)) return;
+        dragProcessedIdsRef.current.add(photoId);
+        setSelectedPhotoIds((prev) => {
+            const next = new Set(prev);
+            if (dragSelectActionRef.current === 'add') next.add(photoId);
+            else next.delete(photoId);
+            return next;
+        });
+    };
+
+    const startDragSelect = (photoId: string, currentlySelected: boolean) => {
+        const action = currentlySelected ? 'remove' : 'add';
+        dragSelectActionRef.current = action;
+        dragProcessedIdsRef.current = new Set([photoId]);
+        isDragSelectingRef.current = true;
+
+        setSelectedPhotoIds((prev) => {
+            const next = new Set(prev);
+            if (action === 'add') next.add(photoId);
+            else next.delete(photoId);
+            return next;
+        });
+
+        const stop = () => {
+            isDragSelectingRef.current = false;
+            dragProcessedIdsRef.current = new Set();
+            document.removeEventListener('pointerup', stop);
+        };
+        document.addEventListener('pointerup', stop);
+    };
+
+    useEffect(() => {
+        const onTouchMove = (e: TouchEvent) => {
+            if (!isDragSelectingRef.current) return;
+            const touch = e.touches[0];
+            const el = document.elementFromPoint(touch.clientX, touch.clientY);
+            const card = el?.closest('[data-photo-id]') as HTMLElement | null;
+            if (card?.dataset.photoId) applyDragSelect(card.dataset.photoId);
+        };
+        document.addEventListener('touchmove', onTouchMove, { passive: true });
+        return () => document.removeEventListener('touchmove', onTouchMove);
+    }, []);
 
     useEffect(() => {
         savePhotoSizesToStorage(photoSizeBytesById);
@@ -445,7 +493,6 @@ useEffect(() => {
         setMemberProfile(null);
         setMyPhotos([]);
         setChatSearchResultPhotos(null);
-        setChatSearchQuery('');
         setNotifications([]);
         uploadNotificationStatusRef.current = {};
         cursorRef.current = null;
@@ -463,7 +510,6 @@ useEffect(() => {
                 shotAt: photo.shotAt,
                 likeCount: 0
             }));
-        setChatSearchQuery(payload.query);
         setChatSearchResultPhotos(mapped);
         setView('home');
         setSelectedFolder(null);
@@ -1303,17 +1349,6 @@ useEffect(() => {
                         </div>
                     )}
 
-                    {isChatSearchView ? (
-                        <div className="search-result-banner">
-                            <div className="search-result-meta">
-                                <strong>검색 결과</strong>
-                                <span>"{chatSearchQuery}"</span>
-                            </div>
-                            <button className="search-result-clear-btn" onClick={() => { setChatSearchResultPhotos(null); setChatSearchQuery(''); setPreviewIndex(null); }}>
-                                결과 해제
-                            </button>
-                        </div>
-                    ) : null}
 
                     {view === 'trash' ? (
                         <TrashView
@@ -1410,6 +1445,11 @@ useEffect(() => {
                                                                 return next;
                                                             });
                                                         }}
+                                                        onLongPress={() => {
+                                                            if (!isSelectMode) setIsSelectMode(true);
+                                                            startDragSelect(photo.id, selectedPhotoIds.has(photo.id));
+                                                        }}
+                                                        onDragSelectEnter={() => applyDragSelect(photo.id)}
                                                         isLiked={likedPhotoIds.has(photo.id)}
                                                         onLikeToggle={() => handleLikeToggle(photo.id)}
                                                     />

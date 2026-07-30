@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Edit3, Undo, Redo, Save, Search, Wand2, Plus } from 'lucide-react';
+import { X, Edit3, Undo, Redo, Search, Wand2, Plus } from 'lucide-react';
 import {
     type ChatFolderPreviewPhoto,
     type SearchResultItem,
@@ -12,7 +12,6 @@ import {
     getCurrentEditVersion,
     undoEdit,
     redoEdit,
-    finalizeEdit,
     deleteEditSession,
     uploadDirectEdit
 } from '../api/edit';
@@ -442,7 +441,24 @@ export default function Chatbot({
                                             } finally { setIsSending(false); }
                                         })();
                                     },
-                                    () => { appendSearchMessage('assistant', '폴더 생성을 취소했습니다.'); }
+                                    () => {
+                                            void (async () => {
+                                                setIsSending(true);
+                                                try {
+                                                    const sid = await ensureSessionId();
+                                                    const aid = appendSearchMessage('assistant', '');
+                                                    let t = '';
+                                                    await streamAgentRun({
+                                                        chatSessionId: sid, editSessionId: null, userText: '아니',
+                                                        onDelta: (d) => { t += d; updateSearchMessage(aid, t); },
+                                                        onError: (code) => { setErrorMessage(`오류: ${code}`); }
+                                                    });
+                                                    if (!t) updateSearchMessage(aid, '폴더 생성을 취소했습니다.');
+                                                } catch (err) {
+                                                    setErrorMessage(err instanceof Error ? err.message : '오류가 발생했습니다.');
+                                                } finally { setIsSending(false); }
+                                            })();
+                                        }
                                 );
                             }
                         }
@@ -521,7 +537,24 @@ export default function Chatbot({
                                                 } finally { setIsSending(false); }
                                             })();
                                         },
-                                        () => { appendSearchMessage('assistant', '폴더 생성을 취소했습니다.'); }
+                                        () => {
+                                            void (async () => {
+                                                setIsSending(true);
+                                                try {
+                                                    const sid = await ensureSessionId();
+                                                    const aid = appendSearchMessage('assistant', '');
+                                                    let t = '';
+                                                    await streamAgentRun({
+                                                        chatSessionId: sid, editSessionId: null, userText: '아니',
+                                                        onDelta: (d) => { t += d; updateSearchMessage(aid, t); },
+                                                        onError: (code) => { setErrorMessage(`오류: ${code}`); }
+                                                    });
+                                                    if (!t) updateSearchMessage(aid, '폴더 생성을 취소했습니다.');
+                                                } catch (err) {
+                                                    setErrorMessage(err instanceof Error ? err.message : '오류가 발생했습니다.');
+                                                } finally { setIsSending(false); }
+                                            })();
+                                        }
                                     );
                                 }
                             }
@@ -757,36 +790,15 @@ export default function Chatbot({
         }
     };
 
-    const handleSave = async (saveAsNew: boolean) => {
-        if (!editedImageUrl || isSaving) return;
-        if (editSessionIdRef.current === null) {
-            setErrorMessage('편집 세션이 아직 준비 중입니다. 잠시 후 다시 시도해주세요.');
-            return;
-        }
-        setIsSaving(true);
-        try {
-            const finalUrl = await finalizeEdit(editSessionIdRef.current, saveAsNew);
-            editSessionIdRef.current = null;
-            setEditSessionId(null);
-            setEditedImageUrl(finalUrl);
-
-            if (saveAsNew) {
-                const newPhotoId = extractPhotoIdFromUrl(finalUrl) ?? undefined;
-                appendEditMessage('assistant', '새로운 사진으로 저장되었습니다. 갤러리에서 확인하세요!');
-                onPhotoSaved?.(newPhotoId);
-                if (newPhotoId) {
-                    editSessionPhotoIdRef.current = null;
-                    startEditSessionFromUrl(newPhotoId);
-                }
-            } else {
-                appendEditMessage('assistant', '편집된 사진으로 저장되었습니다.');
-                onPhotoSaved?.();
-            }
-        } catch (err: unknown) {
-            setErrorMessage(err instanceof Error ? err.message : '저장 실패');
-        } finally {
-            setIsSaving(false);
-        }
+    const handleDownload = () => {
+        if (!editedImageUrl) return;
+        const a = document.createElement('a');
+        a.href = editedImageUrl;
+        a.download = `phomate_edit_${Date.now()}.jpg`;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     };
 
     const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1124,26 +1136,14 @@ export default function Chatbot({
                                 >
                                     편집 취소
                                 </button>
-                                <div className="save-btn-group">
-                                    <button
-                                        className="save-new-btn"
-                                        onClick={() => void handleSave(true)}
-                                        disabled={!editedImageUrl || isSaving || !isEditReady}
-                                        title="원본을 유지하고 새 사진으로 저장"
-                                    >
-                                        <Save size={14} />
-                                        {isSaving ? '저장 중...' : '새 사진으로'}
-                                    </button>
-                                    <button
-                                        className="save-overwrite-btn"
-                                        onClick={() => void handleSave(false)}
-                                        disabled={!editedImageUrl || isSaving || !isEditReady}
-                                        title="원본을 편집된 사진으로 대체"
-                                    >
-                                        <Save size={14} />
-                                        {isSaving ? '저장 중...' : '편집본으로'}
-                                    </button>
-                                </div>
+                                <button
+                                    className="save-new-btn"
+                                    onClick={handleDownload}
+                                    disabled={!editedImageUrl || !isEditReady}
+                                    title="편집된 이미지 다운로드"
+                                >
+                                    다운로드
+                                </button>
                             </div>
                         </div>
                     )}

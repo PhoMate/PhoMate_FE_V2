@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Check } from 'lucide-react';
 import '../styles/Photocard.css';
+
+const LONG_PRESS_MS = 500;
 
 interface PhotoCardProps {
     photo: { id: string; thumbnailUrl: string; previewUrl?: string; title?: string };
@@ -8,11 +10,37 @@ interface PhotoCardProps {
     isSelectMode?: boolean;
     isSelected?: boolean;
     onSelect?: () => void;
+    onLongPress?: () => void;
+    onDragSelectEnter?: () => void;
     isLiked?: boolean;
     onLikeToggle?: () => void;
 }
 
-export default function PhotoCard({ photo, onClick, isSelectMode, isSelected, onSelect, isLiked, onLikeToggle }: PhotoCardProps) {
+export default function PhotoCard({ photo, onClick, isSelectMode, isSelected, onSelect, onLongPress, onDragSelectEnter, isLiked, onLikeToggle }: PhotoCardProps) {
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const didLongPressRef = useRef(false);
+
+    const startPress = () => {
+        didLongPressRef.current = false;
+        timerRef.current = setTimeout(() => {
+            didLongPressRef.current = true;
+            onLongPress?.();
+        }, LONG_PRESS_MS);
+    };
+
+    const cancelPress = () => {
+        if (timerRef.current) {
+            clearTimeout(timerRef.current);
+            timerRef.current = null;
+        }
+    };
+
+    const handleClick = () => {
+        if (didLongPressRef.current) return;
+        if (isSelectMode) onSelect?.();
+        else onClick?.();
+    };
+
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
         if (isSelectMode) { e.preventDefault(); return; }
         const url = photo.previewUrl || photo.thumbnailUrl;
@@ -25,7 +53,15 @@ export default function PhotoCard({ photo, onClick, isSelectMode, isSelected, on
     return (
         <div
             className={`photo-card ${isSelected ? 'selected' : ''}`}
-            onClick={isSelectMode ? onSelect : onClick}
+            data-photo-id={photo.id}
+            onClick={handleClick}
+            onMouseDown={startPress}
+            onMouseUp={cancelPress}
+            onMouseLeave={cancelPress}
+            onMouseEnter={onDragSelectEnter}
+            onTouchStart={startPress}
+            onTouchEnd={cancelPress}
+            onTouchMove={cancelPress}
             draggable={!isSelectMode}
             onDragStart={handleDragStart}
         >
