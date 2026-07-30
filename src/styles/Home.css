@@ -14,11 +14,18 @@
 .photo-area.sidebar-open { margin-left: 0; }
 .photo-area.sidebar-closed { margin-left: 0; }
 
-.photo-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+.photo-masonry {
+    display: flex;
     gap: 10px;
-    align-items: start;
+    align-items: flex-start;
+}
+
+.photo-masonry-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
 }
 
 .content-header {

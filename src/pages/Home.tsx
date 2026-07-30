@@ -1387,27 +1387,38 @@ useEffect(() => {
                                     </div>
                                 </div>
                             )}
-                            <div className="photo-grid">
-                                {currentViewPhotos.map((photo, index) => (
-                                    <PhotoCard
-                                        key={photo.id}
-                                        photo={photo}
-                                        onClick={() => { if (!isChatSearchView) setPreviewIndex(index); }}
-                                        isSelectMode={isSelectMode}
-                                        isSelected={selectedPhotoIds.has(photo.id)}
-                                        onSelect={() => {
-                                            setSelectedPhotoIds((prev) => {
-                                                const next = new Set(prev);
-                                                if (next.has(photo.id)) next.delete(photo.id);
-                                                else next.add(photo.id);
-                                                return next;
-                                            });
-                                        }}
-                                        isLiked={likedPhotoIds.has(photo.id)}
-                                        onLikeToggle={() => handleLikeToggle(photo.id)}
-                                    />
-                                ))}
-                            </div>
+                            {(() => {
+                                const COL = 4;
+                                const cols: { photo: Photo; gi: number }[][] = Array.from({ length: COL }, () => []);
+                                currentViewPhotos.forEach((photo, i) => cols[i % COL].push({ photo, gi: i }));
+                                return (
+                                    <div className="photo-masonry">
+                                        {cols.map((col, ci) => (
+                                            <div key={ci} className="photo-masonry-col">
+                                                {col.map(({ photo, gi }) => (
+                                                    <PhotoCard
+                                                        key={photo.id}
+                                                        photo={photo}
+                                                        onClick={() => { if (!isSelectMode) setPreviewIndex(gi); }}
+                                                        isSelectMode={isSelectMode}
+                                                        isSelected={selectedPhotoIds.has(photo.id)}
+                                                        onSelect={() => {
+                                                            setSelectedPhotoIds((prev) => {
+                                                                const next = new Set(prev);
+                                                                if (next.has(photo.id)) next.delete(photo.id);
+                                                                else next.add(photo.id);
+                                                                return next;
+                                                            });
+                                                        }}
+                                                        isLiked={likedPhotoIds.has(photo.id)}
+                                                        onLikeToggle={() => handleLikeToggle(photo.id)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
                             {/* ✅ 무한 스크롤 감지 타겟 — home 뷰에서만 */}
                             {view === 'home' && !isChatSearchView && (
                                 <div
