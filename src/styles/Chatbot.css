@@ -344,45 +344,26 @@
     cursor: not-allowed;
 }
 
-.save-btn-group {
-    flex: 2;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.save-new-btn,
-.save-overwrite-btn {
-    width: 100%;
-    padding: 10px;
+.save-new-btn {
+    flex: 1;
+    padding: 13px;
     border: none;
-    border-radius: 10px;
-    font-weight: 600;
-    font-size: 12px;
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 13px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
+    background: linear-gradient(135deg, #1e3a6e, #3b82f6);
+    color: white;
     transition: opacity 0.15s;
 }
 
-.save-new-btn {
-    background: linear-gradient(135deg, #1e3a6e, #3b82f6);
-    color: white;
-}
+.save-new-btn:hover { opacity: 0.85; }
 
-.save-overwrite-btn {
-    background: #f1f5f9;
-    color: #1e3a6e;
-    border: 1px solid #bfdbfe;
-}
-
-.save-new-btn:hover,
-.save-overwrite-btn:hover { opacity: 0.85; }
-
-.save-new-btn:disabled,
-.save-overwrite-btn:disabled {
+.save-new-btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
 }

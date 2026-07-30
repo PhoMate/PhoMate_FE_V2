@@ -240,6 +240,11 @@ export async function getAllFolders(): Promise<FolderSummary[]> {
     }
 }
 
+export async function deleteFolder(folderId: number): Promise<void> {
+    const response = await authFetch(toApiUrl(`/api/folders/${folderId}`), { method: 'DELETE' });
+    if (!response.ok) throw new Error(`폴더 삭제 실패 (${response.status})`);
+}
+
 export async function getFolderById(targetId: number): Promise<FolderSummary | null> {
     try {
         const response = await authFetch(toApiUrl('/api/folders'), { method: 'GET' });

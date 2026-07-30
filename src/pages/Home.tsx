@@ -23,7 +23,7 @@ import {
     isAuthenticated
 } from '../api/auth';
 import { createPhoto, getAlbumLatest, getFolderPhotos, movePhotoToTrash } from '../api/photo';
-import { type ChatFolderPreviewPhoto, getAllFolders } from '../api/chat';
+import { type ChatFolderPreviewPhoto, getAllFolders, deleteFolder } from '../api/chat';
 import { commitPhotoUpload, initPhotoUpload, putFileToPresignedUrl } from '../api/upload';
 import { getMyMember, type MemberProfile } from '../api/member';
 import { extractExifDateMs } from '../utils/exif';
@@ -1092,13 +1092,23 @@ useEffect(() => {
         return true;
     };
 
-    const handleDeleteFolder = () => {
+    const handleDeleteFolder = async () => {
         const target = selectedFolderForSettings;
+        const folderId = folderIdsByName[target];
+        if (folderId) {
+            try {
+                await deleteFolder(folderId);
+            } catch (err) {
+                window.alert(err instanceof Error ? err.message : '폴더 삭제에 실패했습니다.');
+                return;
+            }
+        }
         setFolders((prev) => prev.filter((f) => f !== target));
         setFolderStorageByName((prev) => { const next = { ...prev }; delete next[target]; return next; });
         setFolderPhotoIdsByName((prev) => { const next = { ...prev }; delete next[target]; return next; });
         setFolderCreatedAtByName((prev) => { const next = { ...prev }; delete next[target]; return next; });
         setFolderIconsByName((prev) => { const next = { ...prev }; delete next[target]; return next; });
+        setFolderIdsByName((prev) => { const next = { ...prev }; delete next[target]; return next; });
         if (selectedFolder === target) { setSelectedFolder(null); setView('folder_list'); }
     };
 
@@ -1334,7 +1344,7 @@ useEffect(() => {
                                     : '홈'}
                             </h2>
                             <div className="content-header-actions">
-                                {(view === 'home' || view === 'folder_detail' || view === 'shared_detail') && !isChatSearchView && (
+                                {(view === 'home' || view === 'folder_detail' || view === 'shared_detail') && (!isChatSearchView || isSelectMode) && (
                                     <button
                                         className={`select-mode-btn${isSelectMode ? ' active' : ''}`}
                                         onClick={() => { if (isSelectMode) exitSelectMode(); else setIsSelectMode(true); }}
