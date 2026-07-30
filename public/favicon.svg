@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- 배경 -->
+  <rect width="32" height="32" rx="7" fill="#003366"/>
+  <!-- 뷰파인더 돌출부 -->
+  <rect x="11" y="7" width="10" height="5" rx="2.5" fill="white"/>
+  <!-- 카메라 바디 -->
+  <rect x="4" y="11" width="24" height="16" rx="3" fill="white"/>
+  <!-- 왼쪽 눈 (열린 눈) -->
+  <circle cx="11" cy="19" r="3.2" fill="#003366"/>
+  <circle cx="10.4" cy="18.2" r="1.3" fill="white"/>
+  <!-- 오른쪽 눈 (찡긋 - 위로 휜 아크 = 행복한 윙크) -->
+  <path d="M 17 20 Q 20.5 15 24 20" stroke="#003366" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- 미소 -->
+  <path d="M 9 23.5 Q 16 28 23 23.5" stroke="#003366" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>

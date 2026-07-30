@@ -47,7 +47,6 @@ export default function Sidebar({
         <aside className="sidebar">
             {/* 브랜드 */}
             <div className="sidebar-brand">
-                <div className="sidebar-brand-icon">P</div>
                 <span className="sidebar-brand-name">Phomate</span>
                 <button className="sidebar-close-btn" onClick={onToggle}>«</button>
             </div>

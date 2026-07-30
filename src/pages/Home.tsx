@@ -1354,6 +1354,18 @@ useEffect(() => {
                     onOpen={() => setIsChatOpen(true)}
                     isLoggedIn={isLoggedIn}
                     onSearchResults={handleChatSearchResults}
+                    onPhotoSaved={(newPhotoId) => {
+                        cursorRef.current = null;
+                        void loadAlbum().then(() => {
+                            if (!newPhotoId) return;
+                            setMyPhotos((prev) => {
+                                const idx = prev.findIndex((p) => p.id === String(newPhotoId));
+                                if (idx <= 0) return prev;
+                                const photo = prev[idx];
+                                return [photo, ...prev.slice(0, idx), ...prev.slice(idx + 1)];
+                            });
+                        });
+                    }}
                     onFolderCreated={(folderName, folderType, photoIds) => {
                         const photoIdStrings = photoIds.map((id) => String(id)).filter((id) => id.length > 0);
                         const photoIdSet = new Set(photoIdStrings);

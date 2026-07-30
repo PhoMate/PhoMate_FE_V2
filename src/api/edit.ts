@@ -155,11 +155,16 @@ export async function redoEdit(editSessionId: number): Promise<EditVersionRespon
     return response.json();
 }
 
-/** 6. Finalize (최종 저장 및 종료) */
-export async function finalizeEdit(editSessionId: number): Promise<string> {
-    const response = await authFetch(toApiUrl(`/api/edits/${editSessionId}/finalize`), {
-        method: 'POST'
-    });
+/** 6. Finalize (최종 저장 및 종료)
+ * saveAsNew=true  → 새로운 사진으로 저장 (원본 유지)
+ * saveAsNew=false → 편집된 사진으로 저장 (원본 대체)
+ */
+export async function finalizeEdit(editSessionId: number, saveAsNew: boolean = true): Promise<string> {
+    const params = new URLSearchParams({ saveAsNew: String(saveAsNew) });
+    const response = await authFetch(
+        toApiUrl(`/api/edits/${editSessionId}/finalize?${params.toString()}`),
+        { method: 'POST' }
+    );
     if (!response.ok) throw new Error('최종 저장 실패');
     return response.text();
 }

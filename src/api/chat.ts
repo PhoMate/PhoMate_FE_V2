@@ -12,6 +12,7 @@ export type SearchResultItem = {
     shotAt?: string;
     score?: number;
     similarity?: number;
+    description?: string;
 };
 
 function extractItemsFromUnknown(value: unknown): SearchResultItem[] {
@@ -472,6 +473,117 @@ export async function confirmAutoFolder(
 
 function isDoneEvent(eventType: string, data: string): boolean {
     return eventType === 'done' || data.trim() === '[DONE]';
+}
+
+// ─── /api/chat/agent/run ────────────────────────────────────────────────────
+
+export type AgentRunParams = {
+    chatSessionId: number;
+    editSessionId?: number | null;
+    userText: string;
+    onDelta?: (delta: string) => void;
+    onResults?: (items: SearchResultItem[]) => void;
+    onEditedUrl?: (url: string) => void;
+    onFolderCreated?: (data: unknown) => void;
+    onError?: (code: string) => void;
+};
+
+export async function streamAgentRun(params: AgentRunParams): Promise<void> {
+    const body = JSON.stringify({
+        chatSessionId: params.chatSessionId,
+        editSessionId: params.editSessionId ?? null,
+        userText: params.userText
+    });
+
+    const requestAndConsume = async (accept: string): Promise<void> => {
+        const response = await authFetch(toApiUrl('/api/chat/agent/run'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: accept },
+            body,
+            cache: 'no-store'
+        });
+        if (!response.ok) throw await buildHttpError(response, 'AI 에이전트 요청에 실패했습니다.');
+        await consumeAgentRunResponse(response, params);
+    };
+
+    try {
+        await requestAndConsume('text/event-stream');
+    } catch (error) {
+        if (!isHttp2ProtocolError(error)) throw error;
+        await requestAndConsume('*/*');
+    }
+}
+
+async function consumeAgentRunResponse(response: Response, params: AgentRunParams): Promise<void> {
+    if (!response.body) {
+        const text = await response.text();
+        if (text) params.onDelta?.(text);
+        return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = '';
+    let receivedAnyData = false;
+
+    const consumeBlock = (block: string) => {
+        if (!block.trim()) return;
+        const { eventType, data } = parseEventBlock(block);
+        const et = eventType.toLowerCase();
+
+        if (et === 'done' || data.trim() === '[DONE]') return;
+
+        if (et === 'error') {
+            params.onError?.(data.trim() || 'agent_failed');
+            return;
+        }
+
+        if (et === 'results') {
+            const items = parseResultsItems(data);
+            if (items.length > 0) { receivedAnyData = true; params.onResults?.(items); }
+            return;
+        }
+
+        if (et === 'delta') {
+            const text = data.trim();
+            if (text) { receivedAnyData = true; params.onDelta?.(text); }
+            return;
+        }
+
+        if (et === 'edited_url') {
+            const url = data.trim();
+            if (url) { receivedAnyData = true; params.onEditedUrl?.(url); }
+            return;
+        }
+
+        if (et === 'folder_created') {
+            receivedAnyData = true;
+            try { params.onFolderCreated?.(JSON.parse(data)); }
+            catch { params.onFolderCreated?.(data); }
+            return;
+        }
+
+        // fallback
+        const parsed = parseStreamLine(data);
+        if (parsed.done) return;
+        if (parsed.text) { receivedAnyData = true; params.onDelta?.(parsed.text); }
+    };
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            pending += decoder.decode(value, { stream: true });
+            const blocks = pending.split(/\r?\n\r?\n/);
+            pending = blocks.pop() ?? '';
+            for (const block of blocks) consumeBlock(block);
+        }
+    } catch (error) {
+        if (!receivedAnyData) throw error;
+    }
+
+    pending += decoder.decode();
+    if (pending.trim()) consumeBlock(pending);
 }
 
 function isHttp2ProtocolError(error: unknown): boolean {

@@ -1,43 +1,29 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Edit3, Undo, Redo, Save, Search, Wand2 } from 'lucide-react';
+import { X, Edit3, Undo, Redo, Save, Search, Wand2, Plus } from 'lucide-react';
 import {
     type ChatFolderPreviewPhoto,
     type SearchResultItem,
-    confirmAutoFolder,
-    previewAutoFolder,
     startChatSession,
-    streamSearchChat,
-    streamTextChat
+    streamAgentRun
 } from '../api/chat';
 import {
     startEditSession,
     getCurrentEditVersion,
     undoEdit,
     redoEdit,
-    sendEditChat,
     finalizeEdit
 } from '../api/edit';
-import { getPhotoDetail } from '../api/photo';
+import { getPhotoDetail, getAlbumLatest, createPhoto } from '../api/photo';
 import '../styles/Chatbot.css';
 
 type ChatTab = 'search' | 'edit';
 type ChatRole = 'assistant' | 'user';
-type SearchMode = 'auto' | 'search' | 'organize';
 
 type ChatMessage = {
     id: string;
     role: ChatRole;
     content: string;
     imageUrl?: string;
-};
-
-type FolderPreviewState = {
-    folderName: string;
-    photoIds: number[];
-    status: 'pending' | 'accepted' | 'rejected';
-    folderType: 'PERSONAL' | 'SHARED';
-    photos: ChatFolderPreviewPhoto[];
-    selectedPhotoIds: number[];
 };
 
 type ChatbotProps = {
@@ -49,10 +35,11 @@ type ChatbotProps = {
     onSearchResults?: (payload: { query: string; photos: ChatFolderPreviewPhoto[] }) => void;
     onSessionStart?: (id: number) => void;
     onFolderCreated?: (folderName: string, folderType: 'PERSONAL' | 'SHARED', photoIds: number[]) => void;
+    onPhotoSaved?: (newPhotoId?: number) => void;
 };
 
 const INITIAL_SEARCH_MESSAGES: ChatMessage[] = [
-    { id: 'initial-assistant', role: 'assistant', content: '사진에 대한 설명을 적어주세요.' }
+    { id: 'initial-assistant', role: 'assistant', content: '사진을 설명하거나, 사진을 드래그해서 올려보세요. 드래그한 사진으로 사진 검색 또는 AI 편집을 시작합니다.' }
 ];
 
 const INITIAL_EDIT_MESSAGES: ChatMessage[] = [
@@ -71,7 +58,8 @@ export default function Chatbot({
     selectedPhotoId,
     onSearchResults,
     onSessionStart,
-    onFolderCreated
+    onFolderCreated,
+    onPhotoSaved
 }: ChatbotProps) {
     const isGuestChatMode = import.meta.env.VITE_CHAT_GUEST_MODE === 'true';
     const [activeTab, setActiveTab] = useState<ChatTab>('search');
@@ -92,10 +80,8 @@ export default function Chatbot({
     const [input, setInput] = useState('');
     const [isSending, setIsSending] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
-    const [folderPreview, setFolderPreview] = useState<FolderPreviewState | null>(null);
-    const [folderPreviewType, setFolderPreviewType] = useState<'PERSONAL' | 'SHARED'>('PERSONAL');
-    const searchMode: SearchMode = 'auto';
-    const [isDragOver, setIsDragOver] = useState(false);
+
+const [isDragOver, setIsDragOver] = useState(false);
     const [dragSide, setDragSide] = useState<'search' | 'edit'>('search');
 
     // 직접 편집 패널 상태
@@ -108,9 +94,12 @@ export default function Chatbot({
     const [cropRect, setCropRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
     const cropDragRef = useRef<{ sx: number; sy: number } | null>(null);
 
+    const [isUploading, setIsUploading] = useState(false);
+
     const bodyRef = useRef<HTMLDivElement | null>(null);
     const editChatRef = useRef<HTMLDivElement | null>(null);
     const localEditPreviewUrlRef = useRef<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const setSessionIdSync = (id: number) => {
         sessionIdRef.current = id;
@@ -139,7 +128,6 @@ export default function Chatbot({
     // X버튼 — 전체 초기화 후 닫기
     const handleClose = () => {
         setSearchMessages([...INITIAL_SEARCH_MESSAGES]);
-        setFolderPreview(null);
         setInput('');
         setErrorMessage('');
         sessionIdRef.current = null;
@@ -279,18 +267,18 @@ export default function Chatbot({
         return id;
     };
 
-    const isFolderOrganizeIntent = (text: string) => {
-        const n = text.trim().toLocaleLowerCase();
-        return [
-            '폴더', '분류', '정리', '묶', '모아', '앨범', '그룹', '카테고리',
-            'folder', 'organize', 'group', 'categorize', 'cluster', 'create folder'
-        ].some((k) => n.includes(k));
+    const updateEditMessage = (targetId: string, content: string) => {
+        setEditMessages((prev) => prev.map((m) => (m.id === targetId ? { ...m, content } : m)));
     };
 
-    const isDemoStreamInput = (text: string) => {
-        const n = text.trim().toLocaleLowerCase();
-        return n === '/stream-test' || n.includes('스트리밍 테스트');
-    };
+    const mapAgentResultsToPhotos = (items: SearchResultItem[]): ChatFolderPreviewPhoto[] =>
+        items
+            .map((item) => ({
+                photoId: (item.photoId ?? 0) || (item.postId ?? 0),
+                previewUrl: item.previewUrl ?? item.thumbnailUrl ?? item.imageUrl ?? '',
+                shotAt: item.shotAt ?? ''
+            }))
+            .filter((p) => p.photoId > 0 && !!p.previewUrl);
 
     const streamDemoAssistantMessage = async (targetId: string) => {
         const chunks = ['따뜻한 ', '노을이 ', '비친 ', '바다 ', '사진을 ', '찾았어요. ', '마음에 ', '드는 ', '분위기를 ', '골라서 ', '알려주시면 ', '더 ', '정확히 ', '추천해드릴게요.'];
@@ -335,107 +323,34 @@ export default function Chatbot({
             .finally(() => setIsEditSessionLoading(false));
     };
 
-    const buildSearchCandidates = (query: string): string[] => {
-        const normalized = query.replace(/\s+/g, ' ').trim();
-        const simplified = normalized
-            .replace(/검색해줘|검색해 줘|검색|찾아줘|찾아 줘|찾아|보여줘|보여 줘|추천해줘|추천해 줘|추천|해줘|해 줘/gi, ' ')
-            .replace(/[!?.,]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-        const composed = simplified
-            .replace(/\b와\b|\b과\b|\b및\b|\b랑\b|\b하고\b/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-        return Array.from(new Set([normalized, composed, simplified].filter((v) => v.length > 1)));
-    };
+    const handleFileSelectedForUpload = async (file: File) => {
+        if (!file.type.startsWith('image/')) {
+            setErrorMessage('이미지 파일만 선택할 수 있습니다.');
+            return;
+        }
+        setIsUploading(true);
+        setErrorMessage('');
+        try {
+            await createPhoto(file);
+            onPhotoSaved?.();
 
-    const mapSearchItemsToPhotos = (items: SearchResultItem[], trimmed: string): ChatFolderPreviewPhoto[] => {
-        const toNumber = (value: unknown): number => {
-            if (typeof value === 'number' && Number.isFinite(value)) return value;
-            if (typeof value === 'string' && value.trim()) {
-                const parsed = Number(value);
-                if (Number.isFinite(parsed)) return parsed;
+            const latest = await getAlbumLatest({ size: 1 });
+            const latestPhoto = latest[0];
+            if (!latestPhoto) throw new Error('업로드된 사진을 찾을 수 없습니다.');
+
+            if (activeTab === 'search') {
+                handleImageSearch(latestPhoto.previewUrl);
+            } else {
+                resetEditState();
+                setEditedImageUrl(latestPhoto.previewUrl);
+                startEditSessionFromUrl(latestPhoto.photoId);
             }
-            return 0;
-        };
-        const toText = (value: unknown): string => {
-            if (typeof value === 'string') return value;
-            if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-            return '';
-        };
-        const normalize = (value: string): string => value.toLocaleLowerCase().trim();
-        const compact = (value: string): string => normalize(value).replace(/\s+/g, '');
-        const expandToken = (token: string): string[] => {
-            const base = compact(token);
-            if (!base) return [];
-            const expanded = new Set<string>([base]);
-            if (base.length >= 4) {
-                for (let i = 0; i <= base.length - 2; i += 1) {
-                    expanded.add(base.slice(i, i + 2));
-                }
-            }
-            return Array.from(expanded);
-        };
-
-        const queryTokens = normalize(trimmed)
-            .split(/\s+/)
-            .map((token) => token.trim())
-            .filter((token) => token.length > 1)
-            .filter((token) => !['사진', '검색', '찾아', '찾기', '해줘', '보여줘'].includes(token));
-        const expandedQueryTokens = Array.from(new Set(queryTokens.flatMap((token) => expandToken(token))));
-
-        const scoreByQuery = (item: SearchResultItem): number => {
-            const itemRecord = item as Record<string, unknown>;
-            const serverScoreRaw =
-                itemRecord.score ?? itemRecord.similarity ?? itemRecord.similarityScore ?? itemRecord.relevanceScore;
-            const serverScore = toNumber(serverScoreRaw);
-            const bag = [
-                item.title,
-                itemRecord.description, itemRecord.caption, itemRecord.prompt,
-                itemRecord.style, itemRecord.tags, itemRecord.category
-            ]
-                .map((v) => Array.isArray(v) ? v.join(' ') : toText(v))
-                .join(' ')
-                .toLocaleLowerCase();
-            const compactBag = compact(bag);
-            const compactFullQuery = compact(trimmed);
-
-            if (!bag) {
-                return compactFullQuery.length > 1 &&
-                    compact(toText(itemRecord.previewUrl) || toText(itemRecord.thumbnailUrl) || toText(itemRecord.imageUrl)).includes(compactFullQuery)
-                    ? 50 : 0;
-            }
-
-            let score = serverScore > 0 ? serverScore * 20 : 0;
-            const fullQuery = normalize(trimmed);
-            if (fullQuery.length > 1 && bag.includes(fullQuery)) score += 10;
-            if (compact(fullQuery).length > 1 && compactBag.includes(compact(fullQuery))) score += 14;
-            for (const token of queryTokens) { if (bag.includes(token)) score += 4; }
-            for (const token of expandedQueryTokens) { if (compactBag.includes(token)) score += token.length >= 4 ? 4 : 1; }
-            return score;
-        };
-
-        return items
-            .map((item, index) => {
-                const score = scoreByQuery(item);
-                return {
-                    index,
-                    score,
-                    matched: score >= 10,
-                    photo: {
-                        photoId: toNumber(item.photoId) || toNumber(item.postId),
-                        previewUrl: toText(item.previewUrl) || toText(item.thumbnailUrl) || toText(item.imageUrl),
-                        shotAt: toText(item.shotAt)
-                    }
-                };
-            })
-            .sort((a, b) => {
-                if (a.matched !== b.matched) return a.matched ? -1 : 1;
-                if (b.score !== a.score) return b.score - a.score;
-                return a.index - b.index;
-            })
-            .map((entry) => entry.photo)
-            .filter((item) => item.photoId > 0 && !!item.previewUrl);
+        } catch (err: unknown) {
+            setErrorMessage(err instanceof Error ? err.message : '업로드에 실패했습니다.');
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
     };
 
     const handleSend = async () => {
@@ -461,101 +376,31 @@ export default function Chatbot({
                 }
 
                 const currentSessionId = await ensureSessionId();
-
-                const shouldOrganize = isFolderOrganizeIntent(trimmed);
-
-                if (shouldOrganize) {
-                    const preview = await previewAutoFolder({ chatSessionId: currentSessionId, userText: trimmed, topK: 20 });
-                    const photoIds = preview.photos.map((p) => p.photoId).filter((id) => id > 0);
-                    setFolderPreview({
-                        folderName: preview.suggestedFolderName || 'AI 추천 폴더',
-                        photoIds,
-                        status: 'pending',
-                        folderType: 'PERSONAL',
-                        photos: preview.photos,
-                        selectedPhotoIds: photoIds
-                    });
-                    setFolderPreviewType('PERSONAL');
-                    appendSearchMessage('assistant',
-                        `추천 폴더명: ${preview.suggestedFolderName || 'AI 추천 폴더'}\n분류 후보 사진: ${preview.photos.length}장\n아래에서 포함할 사진을 선택하고 생성해주세요.`
-                    );
-                    return;
-                }
-
-                const assistantMessageId = appendSearchMessage('assistant', '');
+                const assistantId = appendSearchMessage('assistant', '');
                 let streamedText = '';
 
-                if (isDemoStreamInput(trimmed)) {
-                    await streamDemoAssistantMessage(assistantMessageId);
-                    return;
-                }
-
-                const handleDelta = (delta: string) => {
-                    streamedText += delta;
-                    updateSearchMessage(assistantMessageId, streamedText);
-                };
-
-                {
-                    const searchCandidates = buildSearchCandidates(trimmed);
-                    let hasResultItems = false;
-                    try {
-                        await streamSearchChat({
-                            sessionId: currentSessionId,
-                            message: searchCandidates[0] ?? trimmed,
-                            onDelta: handleDelta,
-                            onResults: (items) => {
-                                const mapped = mapSearchItemsToPhotos(items, trimmed);
-                                hasResultItems = mapped.length > 0;
-                                onSearchResults?.({ query: trimmed, photos: mapped });
-                            },
-                            onError: (code) => { setErrorMessage(`검색 오류: ${code}`); }
-                        });
-
-                        if (!hasResultItems) {
-                            for (const candidate of searchCandidates) {
-                                try {
-                                    const preview = await previewAutoFolder({
-                                        chatSessionId: currentSessionId,
-                                        userText: candidate,
-                                        topK: 24
-                                    });
-                                    if (preview.photos.length > 0) {
-                                        hasResultItems = true;
-                                        onSearchResults?.({ query: trimmed, photos: preview.photos });
-                                        break;
-                                    }
-                                } catch {
-                                    // fallback 후보를 순차 시도
-                                }
-                            }
+                await streamAgentRun({
+                    chatSessionId: currentSessionId,
+                    editSessionId: null,
+                    userText: trimmed,
+                    onDelta: (delta) => {
+                        streamedText += delta;
+                        updateSearchMessage(assistantId, streamedText);
+                    },
+                    onResults: (items) => {
+                        const mapped = mapAgentResultsToPhotos(items);
+                        if (mapped.length > 0) onSearchResults?.({ query: trimmed, photos: mapped });
+                    },
+                    onFolderCreated: (data) => {
+                        const d = data as { folderName?: string; folderType?: 'PERSONAL' | 'SHARED'; photoIds?: number[] };
+                        if (d.folderName) {
+                            onFolderCreated?.(d.folderName, d.folderType ?? 'PERSONAL', d.photoIds ?? []);
                         }
+                    },
+                    onError: (code) => { setErrorMessage(`오류: ${code}`); }
+                });
 
-                        if (!hasResultItems && streamedText.trim().length === 0) {
-                            await streamTextChat({
-                                sessionId: currentSessionId,
-                                message: trimmed,
-                                onDelta: handleDelta,
-                                onError: (code) => { setErrorMessage(`스트리밍 오류: ${code}`); }
-                            });
-                        }
-                    } catch (error: unknown) {
-                        const message = error instanceof Error ? error.message : '';
-                        if (streamedText.trim().length > 0) return;
-                        const isProtocolError =
-                            message.includes('ERR_HTTP2_PROTOCOL_ERROR') ||
-                            message.includes('TypeError: Failed to fetch') ||
-                            message.includes('NetworkError');
-                        if (!isProtocolError) throw error;
-                        await streamTextChat({
-                            sessionId: currentSessionId,
-                            message: trimmed,
-                            onDelta: handleDelta,
-                            onError: (code) => { setErrorMessage(`스트리밍 오류: ${code}`); }
-                        });
-                    }
-                }
-
-                if (!streamedText) updateSearchMessage(assistantMessageId, '응답이 비어 있습니다.');
+                if (!streamedText) updateSearchMessage(assistantId, '응답이 비어 있습니다.');
 
             } else {
                 appendEditMessage('user', trimmed);
@@ -574,13 +419,22 @@ export default function Chatbot({
                 }
 
                 const currentSessionId = await ensureSessionId();
-                const currentEditSessionId = ensureEditSessionId();
+                const editAssistantId = appendEditMessage('assistant', '');
+                let editStreamedText = '';
 
-                const reply = await sendEditChat(currentSessionId, currentEditSessionId, trimmed);
+                await streamAgentRun({
+                    chatSessionId: currentSessionId,
+                    editSessionId: editSessionIdRef.current,
+                    userText: trimmed,
+                    onDelta: (delta) => {
+                        editStreamedText += delta;
+                        updateEditMessage(editAssistantId, editStreamedText);
+                    },
+                    onEditedUrl: (url) => { setEditedImageUrl(url); },
+                    onError: (code) => { setErrorMessage(`편집 오류: ${code}`); }
+                });
 
-                const nextText = reply.assistantContent || '편집 응답이 비어 있습니다.';
-                appendEditMessage('assistant', nextText);
-                if (reply.editedUrl) setEditedImageUrl(reply.editedUrl);
+                if (!editStreamedText) updateEditMessage(editAssistantId, '편집 응답이 비어 있습니다.');
             }
         } catch (error: unknown) {
             setErrorMessage(error instanceof Error ? error.message : '메시지 전송 중 오류가 발생했습니다.');
@@ -757,53 +611,35 @@ export default function Chatbot({
         }
     };
 
-    const handleSave = async () => {
-        if (!editedImageUrl || isSaving || editSessionIdRef.current === null) return;
+    const handleSave = async (saveAsNew: boolean) => {
+        if (!editedImageUrl || isSaving) return;
+        if (editSessionIdRef.current === null) {
+            setErrorMessage('편집 세션이 아직 준비 중입니다. 잠시 후 다시 시도해주세요.');
+            return;
+        }
         setIsSaving(true);
         try {
-            const finalUrl = await finalizeEdit(editSessionIdRef.current);
+            const finalUrl = await finalizeEdit(editSessionIdRef.current, saveAsNew);
+            editSessionIdRef.current = null;
+            setEditSessionId(null);
             setEditedImageUrl(finalUrl);
-            appendEditMessage('assistant', '저장이 완료되었습니다. 갤러리에서 확인하세요!');
+
+            if (saveAsNew) {
+                const newPhotoId = extractPhotoIdFromUrl(finalUrl) ?? undefined;
+                appendEditMessage('assistant', '새로운 사진으로 저장되었습니다. 갤러리에서 확인하세요!');
+                onPhotoSaved?.(newPhotoId);
+                if (newPhotoId) {
+                    editSessionPhotoIdRef.current = null;
+                    startEditSessionFromUrl(newPhotoId);
+                }
+            } else {
+                appendEditMessage('assistant', '편집된 사진으로 저장되었습니다.');
+                onPhotoSaved?.();
+            }
         } catch (err: unknown) {
             setErrorMessage(err instanceof Error ? err.message : '저장 실패');
         } finally {
             setIsSaving(false);
-        }
-    };
-
-    const handlePhotoToggle = (photoId: number) => {
-        if (!folderPreview) return;
-        setFolderPreview((prev) => {
-            if (!prev) return prev;
-            const newSelected = prev.selectedPhotoIds.includes(photoId)
-                ? prev.selectedPhotoIds.filter((id) => id !== photoId)
-                : [...prev.selectedPhotoIds, photoId];
-            return { ...prev, selectedPhotoIds: newSelected };
-        });
-    };
-
-    const handleFolderConfirm = async (accepted: boolean, folderType: 'PERSONAL' | 'SHARED' = folderPreviewType) => {
-        if (!folderPreview || folderPreview.status !== 'pending') return;
-        setIsSending(true);
-        setErrorMessage('');
-        try {
-            const currentSessionId = sessionIdRef.current || await ensureSessionId();
-            await confirmAutoFolder({
-                chatSessionId: currentSessionId,
-                accepted,
-                folderName: folderPreview.folderName,
-                photoIds: folderPreview.selectedPhotoIds,
-                folderType
-            });
-            setFolderPreview((prev) => prev ? { ...prev, status: accepted ? 'accepted' : 'rejected' } : prev);
-            if (accepted && folderPreview) {
-                onFolderCreated?.(folderPreview.folderName, folderType, [...folderPreview.selectedPhotoIds]);
-            }
-            appendSearchMessage('assistant', accepted ? '폴더가 생성되었습니다.' : '폴더 생성을 취소했습니다.');
-        } catch (error: unknown) {
-            setErrorMessage(error instanceof Error ? error.message : '폴더 생성 확정 중 오류가 발생했습니다.');
-        } finally {
-            setIsSending(false);
         }
     };
 
@@ -837,7 +673,6 @@ export default function Chatbot({
         setErrorMessage('');
         const photoId = extractPhotoIdFromUrl(t);
         if (photoId) {
-            appendEditMessage('assistant', '이미지를 인식했습니다. 편집 세션을 시작하는 중...');
             startEditSessionFromUrl(photoId);
         } else {
             appendEditMessage('assistant', '드롭한 이미지가 적용되었습니다. (외부 이미지는 AI 편집이 제한될 수 있습니다.)');
@@ -859,16 +694,18 @@ export default function Chatbot({
         }
 
         const assistantId = appendSearchMessage('assistant', '');
+        setIsSending(true);
         void (async () => {
             try {
                 const currentSessionId = await ensureSessionId();
                 let streamedText = '';
-                await streamSearchChat({
-                    sessionId: currentSessionId,
-                    message: `이 이미지와 비슷한 사진을 찾아줘: ${url}`,
+                await streamAgentRun({
+                    chatSessionId: currentSessionId,
+                    editSessionId: null,
+                    userText: `이 이미지와 비슷한 사진을 찾아줘: ${url}`,
                     onDelta: (delta) => { streamedText += delta; updateSearchMessage(assistantId, streamedText); },
                     onResults: (items) => {
-                        const mapped = mapSearchItemsToPhotos(items, '이미지 검색');
+                        const mapped = mapAgentResultsToPhotos(items);
                         if (mapped.length > 0) onSearchResults?.({ query: '이미지 검색', photos: mapped });
                     },
                     onError: (code) => { updateSearchMessage(assistantId, `이미지 검색 오류: ${code}`); }
@@ -876,6 +713,8 @@ export default function Chatbot({
                 if (!streamedText.trim()) updateSearchMessage(assistantId, '이미지 기반 검색 결과를 불러오지 못했습니다.');
             } catch {
                 updateSearchMessage(assistantId, '이미지 검색 중 오류가 발생했습니다.');
+            } finally {
+                setIsSending(false);
             }
         })();
     };
@@ -938,7 +777,7 @@ export default function Chatbot({
         );
     }
 
-    const isEditReady = editSessionIdRef.current !== null && !isEditSessionLoading;
+    const isEditReady = editSessionIdRef.current !== null;
 
     return (
         <aside className="chatbot-container">
@@ -947,7 +786,8 @@ export default function Chatbot({
                 {/* 헤더 */}
                 <div className="chatbot-header">
                     <div className="chatbot-header-left">
-                        <span className="chatbot-title">AI 대화</span>
+                        <img src="/favicon.png" alt="PhoMate" className="chatbot-logo-icon" />
+                        <span className="chatbot-title"> AI Phomo</span>
                         {activeTab === 'edit' && (
                             <span className="chatbot-mode-badge">✏ 편집 모드</span>
                         )}
@@ -1080,68 +920,15 @@ export default function Chatbot({
                             {m.imageUrl && (
                                 <img src={m.imageUrl} className="chat-msg-photo" alt="검색 사진" />
                             )}
-                            {(m.content || !m.imageUrl) ? (m.content || '...') : null}
+                            {m.content || null}
                         </div>
                     ))}
 
-                    {/* 폴더 미리보기 (검색 모드) */}
-                    {activeTab === 'search' && folderPreview && folderPreview.status === 'pending' && (
-                        <div>
-                            <div className="folder-preview-grid">
-                                {folderPreview.photos.map((photo) => (
-                                    <div
-                                        key={photo.photoId}
-                                        className={`folder-preview-photo ${folderPreview.selectedPhotoIds.includes(photo.photoId) ? 'selected' : ''}`}
-                                        onClick={() => handlePhotoToggle(photo.photoId)}
-                                    >
-                                        {photo.previewUrl ? (
-                                            <img src={photo.previewUrl} alt="preview" />
-                                        ) : (
-                                            <div className="folder-preview-photo-empty">사진 {photo.photoId}</div>
-                                        )}
-                                        {folderPreview.selectedPhotoIds.includes(photo.photoId) && (
-                                            <div className="photo-selected-badge">✓</div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="folder-preview-count">
-                                선택된 사진: {folderPreview.selectedPhotoIds.length}장
-                            </div>
-                            <div className="folder-preview-actions">
-                                <div className="folder-type-selector">
-                                    <button
-                                        className={`folder-type-btn ${folderPreviewType === 'PERSONAL' ? 'active' : ''}`}
-                                        onClick={() => setFolderPreviewType('PERSONAL')}
-                                        disabled={isSending}
-                                    >
-                                        📁 폴더
-                                    </button>
-                                    <button
-                                        className={`folder-type-btn ${folderPreviewType === 'SHARED' ? 'active' : ''}`}
-                                        onClick={() => setFolderPreviewType('SHARED')}
-                                        disabled={isSending}
-                                    >
-                                        🔗 공유폴더
-                                    </button>
-                                </div>
-                                <div className="folder-action-buttons">
-                                    <button
-                                        className="folder-preview-btn accept"
-                                        onClick={() => void handleFolderConfirm(true)}
-                                        disabled={isSending}
-                                    >
-                                        생성
-                                    </button>
-                                    <button
-                                        className="folder-preview-btn reject"
-                                        onClick={() => void handleFolderConfirm(false)}
-                                        disabled={isSending}
-                                    >
-                                        취소
-                                    </button>
-                                </div>
-                            </div>
+                    {/* 편집중 인디케이터 — 메시지 바로 아래 */}
+                    {activeTab === 'edit' && isSending && (
+                        <div className="chat-sending-bar">
+                            <img src="/favicon.png" className="chat-sending-favicon" alt="" />
+                            <span>편집중...</span>
                         </div>
                     )}
 
@@ -1182,15 +969,35 @@ export default function Chatbot({
                                 >
                                     편집 취소
                                 </button>
-                                <button
-                                    className="save-finish-btn"
-                                    onClick={() => void handleSave()}
-                                    disabled={!editedImageUrl || isSaving || !isEditReady}
-                                >
-                                    <Save size={16} />
-                                    {isSaving ? '저장 중...' : '저장'}
-                                </button>
+                                <div className="save-btn-group">
+                                    <button
+                                        className="save-new-btn"
+                                        onClick={() => void handleSave(true)}
+                                        disabled={!editedImageUrl || isSaving || !isEditReady}
+                                        title="원본을 유지하고 새 사진으로 저장"
+                                    >
+                                        <Save size={14} />
+                                        {isSaving ? '저장 중...' : '새 사진으로'}
+                                    </button>
+                                    <button
+                                        className="save-overwrite-btn"
+                                        onClick={() => void handleSave(false)}
+                                        disabled={!editedImageUrl || isSaving || !isEditReady}
+                                        title="원본을 편집된 사진으로 대체"
+                                    >
+                                        <Save size={14} />
+                                        {isSaving ? '저장 중...' : '편집본으로'}
+                                    </button>
+                                </div>
                             </div>
+                        </div>
+                    )}
+
+                    {/* 검색중 인디케이터 */}
+                    {activeTab === 'search' && isSending && (
+                        <div className="chat-sending-bar">
+                            <img src="/favicon.png" className="chat-sending-favicon" alt="" />
+                            <span>검색중...</span>
                         </div>
                     )}
 
@@ -1199,7 +1006,28 @@ export default function Chatbot({
 
                 {/* 푸터 입력창 */}
                 <div className="chatbot-footer">
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void handleFileSelectedForUpload(file);
+                        }}
+                    />
                     <div className="input-field-pill">
+                        <button
+                            className="chat-plus-btn"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isUploading || isSending}
+                            title={activeTab === 'edit' ? '사진 업로드 후 편집' : '사진 업로드 후 검색'}
+                        >
+                            {isUploading
+                                ? <span className="chat-plus-spinner" />
+                                : <Plus size={16} strokeWidth={2.5} />
+                            }
+                        </button>
                         <input
                             type="text"
                             className="chat-input"
