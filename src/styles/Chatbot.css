@@ -657,6 +657,14 @@
 }
 
 /* 폴더 미리보기 */
+.folder-preview-container {
+    margin: 8px 12px 4px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f8fafc;
+}
+
 .folder-preview-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);

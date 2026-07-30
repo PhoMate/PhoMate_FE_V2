@@ -518,6 +518,7 @@ export type AgentRunParams = {
     chatSessionId: number;
     editSessionId?: number | null;
     userText: string;
+    selectedPhotoIds?: number[];
     onDelta?: (delta: string) => void;
     onResults?: (items: SearchResultItem[]) => void;
     onEditedUrl?: (url: string) => void;
@@ -529,7 +530,8 @@ export async function streamAgentRun(params: AgentRunParams): Promise<void> {
     const body = JSON.stringify({
         chatSessionId: params.chatSessionId,
         editSessionId: params.editSessionId ?? null,
-        userText: params.userText
+        userText: params.userText,
+        ...(params.selectedPhotoIds?.length ? { selectedPhotoIds: params.selectedPhotoIds } : {})
     });
 
     const requestAndConsume = async (accept: string): Promise<void> => {

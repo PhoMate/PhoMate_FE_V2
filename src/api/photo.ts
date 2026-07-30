@@ -203,6 +203,27 @@ export async function createPhoto(file: File, clientLastModifiedMs?: number): Pr
     }
 }
 
+export async function getFolderPhotos(folderId: number): Promise<PhotoFeedItem[]> {
+    const response = await authFetch(toApiUrl(`/api/folders/${folderId}/photos/feed`), { method: 'GET' });
+    if (!response.ok) return [];
+
+    const payload = (await response.json()) as JsonRecord;
+    const data = asRecord(payload.data) ?? payload;
+    const items = Array.isArray(data.items) ? data.items : Array.isArray(payload) ? (payload as unknown[]) : [];
+
+    return items
+        .map((item) => asRecord(item))
+        .filter((item): item is JsonRecord => !!item)
+        .map((item) => ({
+            photoId: asNumber(item.photoId),
+            thumbnailUrl: asText(item.thumbnailUrl),
+            previewUrl: asText(item.previewUrl),
+            shotAt: asText(item.shotAt),
+            sizeBytes: asNumber(item.sizeBytes) || asNumber(item.fileSizeBytes) || 0
+        }))
+        .filter((item) => item.photoId > 0);
+}
+
 export async function replacePhoto(photoId: number, file: File, clientLastModifiedMs?: number): Promise<void> {
     const normalizedFile = normalizeImageFile(file);
     const formData = new FormData();

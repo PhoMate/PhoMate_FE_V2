@@ -14,7 +14,7 @@ import {
     redoEdit,
     finalizeEdit
 } from '../api/edit';
-import { getPhotoDetail, getAlbumLatest, createPhoto } from '../api/photo';
+import { getPhotoDetail, getAlbumLatest, createPhoto, getFolderPhotos } from '../api/photo';
 import '../styles/Chatbot.css';
 
 type ChatTab = 'search' | 'edit';
@@ -25,6 +25,11 @@ type ChatMessage = {
     role: ChatRole;
     content: string;
     imageUrl?: string;
+};
+
+type FolderPreviewState = {
+    photos: ChatFolderPreviewPhoto[];
+    selectedPhotoIds: number[];
 };
 
 type ChatbotProps = {
@@ -82,6 +87,7 @@ export default function Chatbot({
     const [isSending, setIsSending] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
+    const [folderPreview, setFolderPreview] = useState<FolderPreviewState | null>(null);
 const [isDragOver, setIsDragOver] = useState(false);
     const [dragSide, setDragSide] = useState<'search' | 'edit'>('search');
 
@@ -129,6 +135,7 @@ const [isDragOver, setIsDragOver] = useState(false);
     // X버튼 — 전체 초기화 후 닫기
     const handleClose = () => {
         setSearchMessages([...INITIAL_SEARCH_MESSAGES]);
+        setFolderPreview(null);
         setInput('');
         setErrorMessage('');
         sessionIdRef.current = null;
@@ -281,6 +288,60 @@ const [isDragOver, setIsDragOver] = useState(false);
             }))
             .filter((p) => p.photoId > 0 && !!p.previewUrl);
 
+    const isFolderOrganizeIntent = (text: string) => {
+        const n = text.trim().toLocaleLowerCase();
+        return ['폴더', '분류', '정리', '묶', '모아', '앨범', '그룹', 'folder', 'organize', 'group'].some((k) => n.includes(k));
+    };
+
+    const isSearchIntent = (text: string) => {
+        const n = text.trim();
+        return ['검색', '찾아줘', '찾아봐', '찾아', '보여줘', '보여줄', '알려줘', '있어', '있을까', '어디', '뭐가', 'search', 'find', 'show me'].some((k) => n.includes(k));
+    };
+
+    const handlePhotoToggle = (photoId: number) => {
+        setFolderPreview((prev) => {
+            if (!prev) return prev;
+            const selected = prev.selectedPhotoIds.includes(photoId)
+                ? prev.selectedPhotoIds.filter((id) => id !== photoId)
+                : [...prev.selectedPhotoIds, photoId];
+            return { ...prev, selectedPhotoIds: selected };
+        });
+    };
+
+    const handleFolderAction = async (confirm: boolean) => {
+        if (!folderPreview) return;
+        setIsSending(true);
+        const selectedIds = folderPreview.selectedPhotoIds;
+        setFolderPreview(null);
+        try {
+            const currentSessionId = await ensureSessionId();
+            const assistantId = appendSearchMessage('assistant', '');
+            let streamedText = '';
+            await streamAgentRun({
+                chatSessionId: currentSessionId,
+                editSessionId: null,
+                userText: confirm ? '응' : '아니',
+                selectedPhotoIds: confirm ? selectedIds : undefined,
+                onDelta: (delta) => { streamedText += delta; updateSearchMessage(assistantId, streamedText); },
+                onFolderCreated: (data) => {
+                    const d = data as { folderId?: number };
+                    const folderId = d.folderId ?? 0;
+                    if (folderId) {
+                        void Promise.all([getFolderById(folderId), getFolderPhotos(folderId)]).then(([folder, photos]) => {
+                            if (folder) onFolderCreated?.(folder.folderName, folder.folderType, photos.map((p) => p.photoId));
+                        });
+                    }
+                },
+                onError: (code) => { setErrorMessage(`오류: ${code}`); }
+            });
+            if (!streamedText) updateSearchMessage(assistantId, confirm ? '폴더를 만들었습니다.' : '폴더 생성을 취소했습니다.');
+        } catch (err: unknown) {
+            setErrorMessage(err instanceof Error ? err.message : '오류가 발생했습니다.');
+        } finally {
+            setIsSending(false);
+        }
+    };
+
     const streamDemoAssistantMessage = async (targetId: string) => {
         const chunks = ['따뜻한 ', '노을이 ', '비친 ', '바다 ', '사진을 ', '찾았어요. ', '마음에 ', '드는 ', '분위기를 ', '골라서 ', '알려주시면 ', '더 ', '정확히 ', '추천해드릴게요.'];
         let streamed = '';
@@ -379,6 +440,7 @@ const [isDragOver, setIsDragOver] = useState(false);
                 const currentSessionId = await ensureSessionId();
                 const assistantId = appendSearchMessage('assistant', '');
                 let streamedText = '';
+                const isFolderIntent = isFolderOrganizeIntent(trimmed);
 
                 await streamAgentRun({
                     chatSessionId: currentSessionId,
@@ -390,13 +452,25 @@ const [isDragOver, setIsDragOver] = useState(false);
                     },
                     onResults: (items) => {
                         const mapped = mapAgentResultsToPhotos(items);
-                        if (mapped.length > 0) onSearchResults?.({ query: trimmed, photos: mapped });
+                        if (mapped.length > 0) {
+                            onSearchResults?.({ query: trimmed, photos: mapped });
+                            if (isFolderIntent) {
+                                setFolderPreview({
+                                    photos: mapped,
+                                    selectedPhotoIds: mapped.map((p) => p.photoId)
+                                });
+                            }
+                        }
                     },
                     onFolderCreated: (data) => {
-                        const d = data as { folderName?: string; folderType?: 'PERSONAL' | 'SHARED'; photoIds?: number[] };
-                        if (d.folderName) {
-                            onFolderCreated?.(d.folderName, d.folderType ?? 'PERSONAL', d.photoIds ?? []);
+                        const d = data as { folderId?: number };
+                        const folderId = d.folderId ?? 0;
+                        if (folderId) {
+                            void getFolderById(folderId).then((folder) => {
+                                if (folder) onFolderCreated?.(folder.folderName, folder.folderType, []);
+                            });
                         }
+                        setFolderPreview(null);
                     },
                     onError: (code) => { setErrorMessage(`오류: ${code}`); }
                 });
@@ -404,6 +478,59 @@ const [isDragOver, setIsDragOver] = useState(false);
                 if (!streamedText) updateSearchMessage(assistantId, '응답이 비어 있습니다.');
 
             } else {
+                // 편집 모드에서 검색 의도 감지 → 검색 모드로 자동 전환
+                if (isSearchIntent(trimmed)) {
+                    resetEditState();
+                    setActiveTab('search');
+                    setErrorMessage('');
+                    appendSearchMessage('user', trimmed);
+
+                    if (isGuestChatMode) {
+                        const id = appendSearchMessage('assistant', '');
+                        await streamDemoAssistantMessage(id);
+                        return;
+                    }
+                    if (!isLoggedIn) {
+                        appendSearchMessage('assistant', '로그인 후 검색 챗봇을 사용할 수 있습니다.');
+                        return;
+                    }
+
+                    const currentSessionId = await ensureSessionId();
+                    const assistantId = appendSearchMessage('assistant', '');
+                    let streamedText = '';
+                    const isFolderIntent = isFolderOrganizeIntent(trimmed);
+
+                    await streamAgentRun({
+                        chatSessionId: currentSessionId,
+                        editSessionId: null,
+                        userText: trimmed,
+                        onDelta: (delta) => { streamedText += delta; updateSearchMessage(assistantId, streamedText); },
+                        onResults: (items) => {
+                            const mapped = mapAgentResultsToPhotos(items);
+                            if (mapped.length > 0) {
+                                onSearchResults?.({ query: trimmed, photos: mapped });
+                                if (isFolderIntent) {
+                                    setFolderPreview({ photos: mapped, selectedPhotoIds: mapped.map((p) => p.photoId) });
+                                }
+                            }
+                        },
+                        onFolderCreated: (data) => {
+                            const d = data as { folderId?: number };
+                            const folderId = d.folderId ?? 0;
+                            if (folderId) {
+                                void getFolderById(folderId).then((folder) => {
+                                    if (folder) onFolderCreated?.(folder.folderName, folder.folderType, []);
+                                });
+                            }
+                            setFolderPreview(null);
+                        },
+                        onError: (code) => { setErrorMessage(`오류: ${code}`); }
+                    });
+
+                    if (!streamedText) updateSearchMessage(assistantId, '응답이 비어 있습니다.');
+                    return;
+                }
+
                 appendEditMessage('user', trimmed);
 
                 if (isGuestChatMode) {
@@ -789,19 +916,8 @@ const [isDragOver, setIsDragOver] = useState(false);
                     <div className="chatbot-header-left">
                         <img src="/favicon.png" alt="PhoMate" className="chatbot-logo-icon" />
                         <span className="chatbot-title"> AI Phomo</span>
-                        {activeTab === 'edit' && (
-                            <span className="chatbot-mode-badge">✏ 편집 모드</span>
-                        )}
                     </div>
                     <div className="chatbot-header-right">
-                        {activeTab === 'edit' && (
-                            <button
-                                className="edit-exit-btn"
-                                onClick={() => handleTabChange('search')}
-                            >
-                                ← 검색으로 돌아가기
-                            </button>
-                        )}
                         <button className="panel-close-btn" onClick={handleClose}>
                             <X size={20} />
                         </button>
@@ -999,6 +1115,46 @@ const [isDragOver, setIsDragOver] = useState(false);
                         <div className="chat-sending-bar">
                             <img src="/favicon.png" className="chat-sending-favicon" alt="" />
                             <span>검색중...</span>
+                        </div>
+                    )}
+
+                    {/* 폴더 미리보기 — 검색 탭에서 폴더 의도 감지 시 */}
+                    {activeTab === 'search' && folderPreview && (
+                        <div className="folder-preview-container">
+                            <div className="folder-preview-grid">
+                                {folderPreview.photos.map((photo) => {
+                                    const isSelected = folderPreview.selectedPhotoIds.includes(photo.photoId);
+                                    return (
+                                        <div
+                                            key={photo.photoId}
+                                            className={`folder-preview-photo${isSelected ? ' selected' : ''}`}
+                                            onClick={() => handlePhotoToggle(photo.photoId)}
+                                        >
+                                            <img src={photo.previewUrl} alt="preview" />
+                                            {isSelected && <div className="photo-selected-badge">✓</div>}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div className="folder-preview-count">
+                                선택된 사진: {folderPreview.selectedPhotoIds.length}장
+                            </div>
+                            <div className="folder-preview-actions">
+                                <button
+                                    className="folder-preview-btn accept"
+                                    onClick={() => void handleFolderAction(true)}
+                                    disabled={isSending || folderPreview.selectedPhotoIds.length === 0}
+                                >
+                                    폴더 만들기
+                                </button>
+                                <button
+                                    className="folder-preview-btn reject"
+                                    onClick={() => void handleFolderAction(false)}
+                                    disabled={isSending}
+                                >
+                                    취소
+                                </button>
+                            </div>
                         </div>
                     )}
 

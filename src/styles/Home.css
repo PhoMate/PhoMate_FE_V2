@@ -15,10 +15,8 @@
 .photo-area.sidebar-closed { margin-left: 0; }
 
 .photo-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    align-items: start;
+    columns: 4;
+    column-gap: 10px;
 }
 
 .content-header {
