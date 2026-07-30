@@ -203,8 +203,8 @@ export async function createPhoto(file: File, clientLastModifiedMs?: number): Pr
     }
 }
 
-export async function getFolderPhotos(folderId: number): Promise<PhotoFeedItem[]> {
-    const response = await authFetch(toApiUrl(`/api/folders/${folderId}/photos/feed`), { method: 'GET' });
+export async function getFolderPhotos(folderId: number, size = 500): Promise<PhotoFeedItem[]> {
+    const response = await authFetch(toApiUrl(`/api/folders/${folderId}/photos/feed?size=${size}`), { method: 'GET' });
     if (!response.ok) return [];
 
     const payload = (await response.json()) as JsonRecord;

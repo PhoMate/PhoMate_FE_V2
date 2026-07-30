@@ -12,9 +12,11 @@ import {
     getCurrentEditVersion,
     undoEdit,
     redoEdit,
-    finalizeEdit
+    finalizeEdit,
+    deleteEditSession,
+    uploadDirectEdit
 } from '../api/edit';
-import { getPhotoDetail, getAlbumLatest, createPhoto, getFolderPhotos } from '../api/photo';
+import { getPhotoDetail, getAlbumLatest, createPhoto } from '../api/photo';
 import '../styles/Chatbot.css';
 
 type ChatTab = 'search' | 'edit';
@@ -27,11 +29,6 @@ type ChatMessage = {
     imageUrl?: string;
 };
 
-type FolderPreviewState = {
-    photos: ChatFolderPreviewPhoto[];
-    selectedPhotoIds: number[];
-};
-
 type ChatbotProps = {
     isOpen: boolean;
     onClose: () => void;
@@ -42,6 +39,11 @@ type ChatbotProps = {
     onSessionStart?: (id: number) => void;
     onFolderCreated?: (folderName: string, folderType: 'PERSONAL' | 'SHARED', photoIds: number[]) => void;
     onPhotoSaved?: (newPhotoId?: number) => void;
+    onFolderSelectionRequest?: (
+        initialPhotoIds: number[],
+        onConfirm: (ids: number[]) => void,
+        onCancel: () => void
+    ) => void;
 };
 
 const INITIAL_SEARCH_MESSAGES: ChatMessage[] = [
@@ -65,7 +67,8 @@ export default function Chatbot({
     onSearchResults,
     onSessionStart,
     onFolderCreated,
-    onPhotoSaved
+    onPhotoSaved,
+    onFolderSelectionRequest
 }: ChatbotProps) {
     const isGuestChatMode = import.meta.env.VITE_CHAT_GUEST_MODE === 'true';
     const [activeTab, setActiveTab] = useState<ChatTab>('search');
@@ -87,8 +90,7 @@ export default function Chatbot({
     const [isSending, setIsSending] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
-    const [folderPreview, setFolderPreview] = useState<FolderPreviewState | null>(null);
-const [isDragOver, setIsDragOver] = useState(false);
+    const [isDragOver, setIsDragOver] = useState(false);
     const [dragSide, setDragSide] = useState<'search' | 'edit'>('search');
 
     // 직접 편집 패널 상태
@@ -120,6 +122,9 @@ const [isDragOver, setIsDragOver] = useState(false);
 
     // 편집 상태 초기화
     const resetEditState = () => {
+        if (editSessionIdRef.current !== null) {
+            void deleteEditSession(editSessionIdRef.current);
+        }
         editSessionIdRef.current = null;
         editSessionPhotoIdRef.current = null;
         setEditSessionId(null);
@@ -135,7 +140,6 @@ const [isDragOver, setIsDragOver] = useState(false);
     // X버튼 — 전체 초기화 후 닫기
     const handleClose = () => {
         setSearchMessages([...INITIAL_SEARCH_MESSAGES]);
-        setFolderPreview(null);
         setInput('');
         setErrorMessage('');
         sessionIdRef.current = null;
@@ -298,50 +302,6 @@ const [isDragOver, setIsDragOver] = useState(false);
         return ['검색', '찾아줘', '찾아봐', '찾아', '보여줘', '보여줄', '알려줘', '있어', '있을까', '어디', '뭐가', 'search', 'find', 'show me'].some((k) => n.includes(k));
     };
 
-    const handlePhotoToggle = (photoId: number) => {
-        setFolderPreview((prev) => {
-            if (!prev) return prev;
-            const selected = prev.selectedPhotoIds.includes(photoId)
-                ? prev.selectedPhotoIds.filter((id) => id !== photoId)
-                : [...prev.selectedPhotoIds, photoId];
-            return { ...prev, selectedPhotoIds: selected };
-        });
-    };
-
-    const handleFolderAction = async (confirm: boolean) => {
-        if (!folderPreview) return;
-        setIsSending(true);
-        const selectedIds = folderPreview.selectedPhotoIds;
-        setFolderPreview(null);
-        try {
-            const currentSessionId = await ensureSessionId();
-            const assistantId = appendSearchMessage('assistant', '');
-            let streamedText = '';
-            await streamAgentRun({
-                chatSessionId: currentSessionId,
-                editSessionId: null,
-                userText: confirm ? '응' : '아니',
-                selectedPhotoIds: confirm ? selectedIds : undefined,
-                onDelta: (delta) => { streamedText += delta; updateSearchMessage(assistantId, streamedText); },
-                onFolderCreated: (data) => {
-                    const d = data as { folderId?: number };
-                    const folderId = d.folderId ?? 0;
-                    if (folderId) {
-                        void Promise.all([getFolderById(folderId), getFolderPhotos(folderId)]).then(([folder, photos]) => {
-                            if (folder) onFolderCreated?.(folder.folderName, folder.folderType, photos.map((p) => p.photoId));
-                        });
-                    }
-                },
-                onError: (code) => { setErrorMessage(`오류: ${code}`); }
-            });
-            if (!streamedText) updateSearchMessage(assistantId, confirm ? '폴더를 만들었습니다.' : '폴더 생성을 취소했습니다.');
-        } catch (err: unknown) {
-            setErrorMessage(err instanceof Error ? err.message : '오류가 발생했습니다.');
-        } finally {
-            setIsSending(false);
-        }
-    };
-
     const streamDemoAssistantMessage = async (targetId: string) => {
         const chunks = ['따뜻한 ', '노을이 ', '비친 ', '바다 ', '사진을 ', '찾았어요. ', '마음에 ', '드는 ', '분위기를 ', '골라서 ', '알려주시면 ', '더 ', '정확히 ', '추천해드릴게요.'];
         let streamed = '';
@@ -455,10 +415,35 @@ const [isDragOver, setIsDragOver] = useState(false);
                         if (mapped.length > 0) {
                             onSearchResults?.({ query: trimmed, photos: mapped });
                             if (isFolderIntent) {
-                                setFolderPreview({
-                                    photos: mapped,
-                                    selectedPhotoIds: mapped.map((p) => p.photoId)
-                                });
+                                appendSearchMessage('assistant', '갤러리에서 폴더에 담을 사진을 선택하고 "폴더 만들기"를 눌러주세요.');
+                                onFolderSelectionRequest?.(
+                                    mapped.map((p) => p.photoId),
+                                    (selectedIds: number[]) => {
+                                        void (async () => {
+                                            setIsSending(true);
+                                            try {
+                                                const sid = await ensureSessionId();
+                                                const aid = appendSearchMessage('assistant', '');
+                                                let t = '';
+                                                await streamAgentRun({
+                                                    chatSessionId: sid, editSessionId: null, userText: '응',
+                                                    selectedPhotoIds: selectedIds,
+                                                    onDelta: (d) => { t += d; updateSearchMessage(aid, t); },
+                                                    onFolderCreated: (data) => {
+                                                        const fd = data as { folderId?: number };
+                                                        const fid = fd.folderId ?? 0;
+                                                        if (fid) void getFolderById(fid).then((f) => { if (f) onFolderCreated?.(f.folderName, f.folderType, selectedIds); });
+                                                    },
+                                                    onError: (code) => { setErrorMessage(`오류: ${code}`); }
+                                                });
+                                                if (!t) updateSearchMessage(aid, '폴더를 만들었습니다.');
+                                            } catch (err) {
+                                                setErrorMessage(err instanceof Error ? err.message : '오류가 발생했습니다.');
+                                            } finally { setIsSending(false); }
+                                        })();
+                                    },
+                                    () => { appendSearchMessage('assistant', '폴더 생성을 취소했습니다.'); }
+                                );
                             }
                         }
                     },
@@ -470,7 +455,6 @@ const [isDragOver, setIsDragOver] = useState(false);
                                 if (folder) onFolderCreated?.(folder.folderName, folder.folderType, []);
                             });
                         }
-                        setFolderPreview(null);
                     },
                     onError: (code) => { setErrorMessage(`오류: ${code}`); }
                 });
@@ -510,7 +494,35 @@ const [isDragOver, setIsDragOver] = useState(false);
                             if (mapped.length > 0) {
                                 onSearchResults?.({ query: trimmed, photos: mapped });
                                 if (isFolderIntent) {
-                                    setFolderPreview({ photos: mapped, selectedPhotoIds: mapped.map((p) => p.photoId) });
+                                    appendSearchMessage('assistant', '갤러리에서 폴더에 담을 사진을 선택하고 "폴더 만들기"를 눌러주세요.');
+                                    onFolderSelectionRequest?.(
+                                        mapped.map((p) => p.photoId),
+                                        (selectedIds: number[]) => {
+                                            void (async () => {
+                                                setIsSending(true);
+                                                try {
+                                                    const sid = await ensureSessionId();
+                                                    const aid = appendSearchMessage('assistant', '');
+                                                    let t = '';
+                                                    await streamAgentRun({
+                                                        chatSessionId: sid, editSessionId: null, userText: '응',
+                                                        selectedPhotoIds: selectedIds,
+                                                        onDelta: (d) => { t += d; updateSearchMessage(aid, t); },
+                                                        onFolderCreated: (data) => {
+                                                            const fd = data as { folderId?: number };
+                                                            const fid = fd.folderId ?? 0;
+                                                            if (fid) void getFolderById(fid).then((f) => { if (f) onFolderCreated?.(f.folderName, f.folderType, selectedIds); });
+                                                        },
+                                                        onError: (code) => { setErrorMessage(`오류: ${code}`); }
+                                                    });
+                                                    if (!t) updateSearchMessage(aid, '폴더를 만들었습니다.');
+                                                } catch (err) {
+                                                    setErrorMessage(err instanceof Error ? err.message : '오류가 발생했습니다.');
+                                                } finally { setIsSending(false); }
+                                            })();
+                                        },
+                                        () => { appendSearchMessage('assistant', '폴더 생성을 취소했습니다.'); }
+                                    );
                                 }
                             }
                         },
@@ -522,7 +534,6 @@ const [isDragOver, setIsDragOver] = useState(false);
                                     if (folder) onFolderCreated?.(folder.folderName, folder.folderType, []);
                                 });
                             }
-                            setFolderPreview(null);
                         },
                         onError: (code) => { setErrorMessage(`오류: ${code}`); }
                     });
@@ -718,16 +729,23 @@ const [isDragOver, setIsDragOver] = useState(false);
                 finalCanvas = canvas2;
             }
 
-            await new Promise<void>((resolve, reject) => {
-                finalCanvas.toBlob((blob) => {
-                    if (!blob) { reject(new Error('이미지 변환 실패')); return; }
-                    const url = URL.createObjectURL(blob);
-                    if (localEditPreviewUrlRef.current) URL.revokeObjectURL(localEditPreviewUrlRef.current);
-                    localEditPreviewUrlRef.current = url;
-                    setEditedImageUrl(url);
-                    resolve();
+            const blob = await new Promise<Blob>((resolve, reject) => {
+                finalCanvas.toBlob((b) => {
+                    if (!b) { reject(new Error('이미지 변환 실패')); return; }
+                    resolve(b);
                 }, 'image/jpeg', 0.92);
             });
+
+            if (editSessionIdRef.current !== null) {
+                const file = new File([blob], 'direct-edit.jpg', { type: 'image/jpeg' });
+                const result = await uploadDirectEdit(editSessionIdRef.current, file);
+                setEditedImageUrl(result.imageUrl);
+            } else {
+                const url = URL.createObjectURL(blob);
+                if (localEditPreviewUrlRef.current) URL.revokeObjectURL(localEditPreviewUrlRef.current);
+                localEditPreviewUrlRef.current = url;
+                setEditedImageUrl(url);
+            }
 
             appendEditMessage('assistant', '직접 편집이 적용되었습니다.');
             setIsDirectEditOpen(false);
@@ -786,11 +804,31 @@ const [isDragOver, setIsDragOver] = useState(false);
     const applyDroppedEditImage = (file: File) => {
         if (!file.type.startsWith('image/')) { setErrorMessage('이미지 파일만 드롭할 수 있습니다.'); return; }
         resetEditState();
+        // 로컬 미리보기 즉시 표시
         const objectUrl = URL.createObjectURL(file);
         localEditPreviewUrlRef.current = objectUrl;
         setEditedImageUrl(objectUrl);
-        appendEditMessage('assistant', '새 이미지가 적용되었습니다. 편집 명령을 입력해주세요.');
         setErrorMessage('');
+        appendEditMessage('assistant', '이미지를 업로드하는 중입니다...');
+        // 서버 업로드 후 edit session 시작
+        setIsUploading(true);
+        createPhoto(file)
+            .then(() => getAlbumLatest({ size: 1 }))
+            .then((latest) => {
+                const latestPhoto = latest[0];
+                if (!latestPhoto) throw new Error('업로드된 사진을 찾을 수 없습니다.');
+                if (localEditPreviewUrlRef.current) {
+                    URL.revokeObjectURL(localEditPreviewUrlRef.current);
+                    localEditPreviewUrlRef.current = null;
+                }
+                setEditedImageUrl(latestPhoto.previewUrl);
+                onPhotoSaved?.();
+                startEditSessionFromUrl(latestPhoto.photoId);
+            })
+            .catch((error: unknown) => {
+                setErrorMessage(error instanceof Error ? error.message : '이미지 업로드에 실패했습니다.');
+            })
+            .finally(() => { setIsUploading(false); });
     };
 
     const applyDroppedEditUrl = (url: string) => {
@@ -1118,45 +1156,6 @@ const [isDragOver, setIsDragOver] = useState(false);
                         </div>
                     )}
 
-                    {/* 폴더 미리보기 — 검색 탭에서 폴더 의도 감지 시 */}
-                    {activeTab === 'search' && folderPreview && (
-                        <div className="folder-preview-container">
-                            <div className="folder-preview-grid">
-                                {folderPreview.photos.map((photo) => {
-                                    const isSelected = folderPreview.selectedPhotoIds.includes(photo.photoId);
-                                    return (
-                                        <div
-                                            key={photo.photoId}
-                                            className={`folder-preview-photo${isSelected ? ' selected' : ''}`}
-                                            onClick={() => handlePhotoToggle(photo.photoId)}
-                                        >
-                                            <img src={photo.previewUrl} alt="preview" />
-                                            {isSelected && <div className="photo-selected-badge">✓</div>}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                            <div className="folder-preview-count">
-                                선택된 사진: {folderPreview.selectedPhotoIds.length}장
-                            </div>
-                            <div className="folder-preview-actions">
-                                <button
-                                    className="folder-preview-btn accept"
-                                    onClick={() => void handleFolderAction(true)}
-                                    disabled={isSending || folderPreview.selectedPhotoIds.length === 0}
-                                >
-                                    폴더 만들기
-                                </button>
-                                <button
-                                    className="folder-preview-btn reject"
-                                    onClick={() => void handleFolderAction(false)}
-                                    disabled={isSending}
-                                >
-                                    취소
-                                </button>
-                            </div>
-                        </div>
-                    )}
 
                     {errorMessage && <div className="chat-error-text">{errorMessage}</div>}
                 </div>

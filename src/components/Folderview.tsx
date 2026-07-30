@@ -10,7 +10,7 @@ interface FolderViewProps {
 export default function FolderView({ sectionTitle, folders, onFolderClick }: FolderViewProps) {
     return (
         <div className="folder-view-container">
-            <h3 className="folder-section-title">{sectionTitle}</h3>
+
             <div className="folder-grid">
                 {folders.map((name, index) => (
                     <div 
@@ -24,6 +24,7 @@ export default function FolderView({ sectionTitle, folders, onFolderClick }: Fol
                             </svg>
                         </div>
                         <span className="folder-name">{name}</span>
+
                     </div>
                 ))}
             </div>

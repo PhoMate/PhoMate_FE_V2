@@ -93,48 +93,26 @@ export async function startEditSession(photoId: number): Promise<{ editSessionId
     );
 }
 
+function parseEditVersionResponse(raw: unknown): EditVersionResponse {
+    const root = raw as Record<string, unknown>;
+    const data = (root?.data && typeof root.data === 'object' ? root.data : root) as Record<string, unknown>;
+    return {
+        editSessionId: asNumber(data.editSessionId),
+        editVersionId: asNumber(data.editVersionId),
+        versionIndex: asNumber(data.versionIndex),
+        s3Key: String(data.s3Key ?? ''),
+        imageUrl: String(data.imageUrl ?? ''),
+        sourceType: (data.sourceType as EditVersionResponse['sourceType']) ?? 'INITIAL'
+    };
+}
+
 /** 2. 현재 버전 정보 조회 */
 export async function getCurrentEditVersion(editSessionId: number): Promise<EditVersionResponse> {
     const response = await authFetch(toApiUrl(`/api/edits/${editSessionId}/current`), {
         method: 'GET'
     });
     if (!response.ok) throw new Error('현재 버전 정보를 가져오지 못했습니다.');
-    return response.json();
-}
-
-/**
- * 3. 챗봇 편집 요청 — Gemini 429 대비 지수 백오프 재시도 적용
- * ✅ 수정: sendChatEdit → sendEditChat 으로 이름 통일 (Chatbot.tsx import 와 일치)
- */
-export async function sendEditChat(
-    chatSessionId: number,
-    editSessionId: number,
-    userText: string
-) {
-    const params = new URLSearchParams({
-        chatSessionId: String(chatSessionId),
-        editSessionId: String(editSessionId),
-        userText
-    });
-
-    const response = await fetchWithRetry(
-        () =>
-            authFetch(toApiUrl(`/api/chat/send-edit?${params.toString()}`), {
-                method: 'POST'
-            }),
-        { maxRetries: 3, baseDelayMs: 1000 }
-    );
-
-    if (!response.ok) {
-        if (response.status === 429) {
-            throw new Error(
-                'AI 편집 요청이 너무 많습니다. 잠시 후 다시 시도해주세요. (429)'
-            );
-        }
-        throw new Error(`편집 메시지 전송 실패 (${response.status} ${response.statusText})`);
-    }
-
-    return response.json();
+    return parseEditVersionResponse(await response.json());
 }
 
 /** 4. Undo (이전 버전으로) */
@@ -143,7 +121,7 @@ export async function undoEdit(editSessionId: number): Promise<EditVersionRespon
         method: 'POST'
     });
     if (!response.ok) throw new Error('이전 버전이 없습니다.');
-    return response.json();
+    return parseEditVersionResponse(await response.json());
 }
 
 /** 5. Redo (다음 버전으로) */
@@ -152,7 +130,7 @@ export async function redoEdit(editSessionId: number): Promise<EditVersionRespon
         method: 'POST'
     });
     if (!response.ok) throw new Error('다음 버전이 없습니다.');
-    return response.json();
+    return parseEditVersionResponse(await response.json());
 }
 
 /** 6. Finalize (최종 저장 및 종료)
@@ -181,7 +159,7 @@ export async function uploadDirectEdit(
         body: formData
     });
     if (!response.ok) throw new Error('직접 편집 업로드 실패');
-    return response.json();
+    return parseEditVersionResponse(await response.json());
 }
 
 /** 8. 편집 세션 취소 */

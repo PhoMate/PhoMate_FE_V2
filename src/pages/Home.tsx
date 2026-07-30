@@ -22,7 +22,7 @@ import {
     completeGoogleLoginIfNeeded,
     isAuthenticated
 } from '../api/auth';
-import { createPhoto, getAlbumLatest, movePhotoToTrash } from '../api/photo';
+import { createPhoto, getAlbumLatest, getFolderPhotos, movePhotoToTrash } from '../api/photo';
 import { type ChatFolderPreviewPhoto, getAllFolders } from '../api/chat';
 import { commitPhotoUpload, initPhotoUpload, putFileToPresignedUrl } from '../api/upload';
 import { getMyMember, type MemberProfile } from '../api/member';
@@ -202,6 +202,7 @@ export default function Home() {
     const [folderPhotoIdsByName, setFolderPhotoIdsByName] = useState<Record<string, string[]>>(
         savedFolderData?.folderPhotoIdsByName ?? {}
     );
+    const [folderIdsByName, setFolderIdsByName] = useState<Record<string, number>>({});
     const [folderIconsByName, setFolderIconsByName] = useState<Record<string, string>>(
         savedFolderData?.folderIconsByName ?? {}
     );
@@ -248,6 +249,11 @@ export default function Home() {
 
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
+    const [folderSelectionMode, setFolderSelectionMode] = useState(false);
+    const folderSelectionCallbacksRef = useRef<{
+        onConfirm: (ids: number[]) => void;
+        onCancel: () => void;
+    } | null>(null);
     const [likedPhotoIds, setLikedPhotoIds] = useState<Set<string>>(new Set());
     const isDraggingRef = useRef(false); // 드래그 중 여부
 
@@ -280,6 +286,21 @@ export default function Home() {
 const exitSelectMode = () => {
     setIsSelectMode(false);
     setSelectedPhotoIds(new Set());
+    if (folderSelectionMode) {
+        setFolderSelectionMode(false);
+        folderSelectionCallbacksRef.current = null;
+    }
+};
+
+const handleFolderSelectionRequest = (
+    initialPhotoIds: number[],
+    onConfirm: (ids: number[]) => void,
+    onCancel: () => void
+) => {
+    folderSelectionCallbacksRef.current = { onConfirm, onCancel };
+    setFolderSelectionMode(true);
+    setIsSelectMode(true);
+    setSelectedPhotoIds(new Set(initialPhotoIds.map(String)));
 };
 
 const handleSelectAll = () => {
@@ -611,6 +632,10 @@ useEffect(() => {
 
             setFolders(personal.length > 0 ? personal : []);
             setSharedFolders(shared.length > 0 ? shared : []);
+
+            const idsByName: Record<string, number> = {};
+            apiFolders.forEach((f) => { idsByName[f.folderName] = f.folderId; });
+            setFolderIdsByName(idsByName);
         })();
         return () => { mounted = false; };
     }, [isLoggedIn]);
@@ -960,7 +985,33 @@ useEffect(() => {
         else if (type === 'recent') { setView('home'); setSubNav('recent'); setSelectedFolder(null); }
         else if (type === 'trash') { setView('trash'); setSubNav('home'); setSelectedFolder(null); }
         else if (type === 'folder_parent') { setView('folder_list'); setSubNav('home'); setSelectedFolder(null); }
-        else if (type === 'folder_child') { setView('folder_detail'); setSubNav('home'); setSelectedFolder(target || null); }
+        else if (type === 'folder_child') {
+            setView('folder_detail');
+            setSubNav('home');
+            setSelectedFolder(target || null);
+            if (target) {
+                const folderId = folderIdsByName[target];
+                if (folderId) {
+                    void getFolderPhotos(folderId).then((items) => {
+                        const ids = items.map((item) => String(item.photoId));
+                        setFolderPhotoIdsByName((prev) => ({ ...prev, [target]: ids }));
+                        setMyPhotos((prev) => {
+                            const existingIds = new Set(prev.map((p) => p.id));
+                            const newPhotos = items
+                                .filter((item) => !existingIds.has(String(item.photoId)))
+                                .map((item) => ({
+                                    id: String(item.photoId),
+                                    thumbnailUrl: item.thumbnailUrl,
+                                    previewUrl: item.previewUrl,
+                                    shotAt: item.shotAt,
+                                    likeCount: 0
+                                }));
+                            return newPhotos.length ? [...prev, ...newPhotos] : prev;
+                        });
+                    });
+                }
+            }
+        }
         else if (type === 'shared_parent') { setView('shared_list'); setSubNav('home'); setSelectedFolder(null); }
         else if (type === 'shared_child') { setView('shared_detail'); setSubNav('home'); setSelectedFolder(target || null); }
     };
@@ -1274,27 +1325,65 @@ useEffect(() => {
                         <>
                             {isSelectMode && (
                                 <div className="select-action-bar">
-                                    <span className="select-action-count">{selectedPhotoIds.size}장 선택됨</span>
+                                    <span className="select-action-count">
+                                        {folderSelectionMode ? `${selectedPhotoIds.size}장 선택됨 — 폴더에 담을 사진을 선택하세요` : `${selectedPhotoIds.size}장 선택됨`}
+                                    </span>
                                     <div className="select-action-btns">
-                                        <button
-                                            className="select-action-all-btn"
-                                            onClick={() => {
-                                                if (selectedPhotoIds.size === currentViewPhotos.length) {
-                                                    setSelectedPhotoIds(new Set());
-                                                } else {
-                                                    setSelectedPhotoIds(new Set(currentViewPhotos.map((p) => p.id)));
-                                                }
-                                            }}
-                                        >
-                                            {selectedPhotoIds.size === currentViewPhotos.length ? '전체 해제' : '전체 선택'}
-                                        </button>
-                                        <button
-                                            className="select-action-delete-btn"
-                                            disabled={selectedPhotoIds.size === 0}
-                                            onClick={() => void handleDeleteSelected()}
-                                        >
-                                            삭제
-                                        </button>
+                                        {folderSelectionMode ? (
+                                            <>
+                                                <button
+                                                    className="select-action-all-btn"
+                                                    onClick={() => {
+                                                        const cbs = folderSelectionCallbacksRef.current;
+                                                        folderSelectionCallbacksRef.current = null;
+                                                        setFolderSelectionMode(false);
+                                                        setIsSelectMode(false);
+                                                        setSelectedPhotoIds(new Set());
+                                                        cbs?.onCancel();
+                                                    }}
+                                                >
+                                                    취소
+                                                </button>
+                                                <button
+                                                    className="select-action-delete-btn"
+                                                    style={{ background: '#0f766e' }}
+                                                    disabled={selectedPhotoIds.size === 0}
+                                                    onClick={() => {
+                                                        const ids = [...selectedPhotoIds].map(Number);
+                                                        const cbs = folderSelectionCallbacksRef.current;
+                                                        folderSelectionCallbacksRef.current = null;
+                                                        setFolderSelectionMode(false);
+                                                        setIsSelectMode(false);
+                                                        setSelectedPhotoIds(new Set());
+                                                        cbs?.onConfirm(ids);
+                                                    }}
+                                                >
+                                                    폴더 만들기
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    className="select-action-all-btn"
+                                                    onClick={() => {
+                                                        if (selectedPhotoIds.size === currentViewPhotos.length) {
+                                                            setSelectedPhotoIds(new Set());
+                                                        } else {
+                                                            setSelectedPhotoIds(new Set(currentViewPhotos.map((p) => p.id)));
+                                                        }
+                                                    }}
+                                                >
+                                                    {selectedPhotoIds.size === currentViewPhotos.length ? '전체 해제' : '전체 선택'}
+                                                </button>
+                                                <button
+                                                    className="select-action-delete-btn"
+                                                    disabled={selectedPhotoIds.size === 0}
+                                                    onClick={() => void handleDeleteSelected()}
+                                                >
+                                                    삭제
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -1376,6 +1465,7 @@ useEffect(() => {
                             });
                         });
                     }}
+                    onFolderSelectionRequest={handleFolderSelectionRequest}
                     onFolderCreated={(folderName, folderType, photoIds) => {
                         const photoIdStrings = photoIds.map((id) => String(id)).filter((id) => id.length > 0);
                         const photoIdSet = new Set(photoIdStrings);
