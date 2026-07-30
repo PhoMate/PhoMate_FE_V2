@@ -4,7 +4,8 @@ import {
     type ChatFolderPreviewPhoto,
     type SearchResultItem,
     startChatSession,
-    streamAgentRun
+    streamAgentRun,
+    getFolderById
 } from '../api/chat';
 import {
     startEditSession,

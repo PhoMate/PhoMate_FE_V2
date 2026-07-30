@@ -475,6 +475,43 @@ function isDoneEvent(eventType: string, data: string): boolean {
     return eventType === 'done' || data.trim() === '[DONE]';
 }
 
+// ─── /api/folders 단건 조회 ─────────────────────────────────────────────────
+
+export type FolderSummary = {
+    folderId: number;
+    folderName: string;
+    folderType: 'PERSONAL' | 'SHARED';
+};
+
+export async function getFolderById(targetId: number): Promise<FolderSummary | null> {
+    try {
+        const response = await authFetch(toApiUrl('/api/folders'), { method: 'GET' });
+        if (!response.ok) return null;
+        const payload = (await response.json()) as unknown;
+
+        const items: unknown[] = Array.isArray(payload)
+            ? payload
+            : Array.isArray((payload as JsonRecord)?.items)
+                ? ((payload as JsonRecord).items as unknown[])
+                : Array.isArray((payload as JsonRecord)?.data)
+                    ? ((payload as JsonRecord).data as unknown[])
+                    : [];
+
+        for (const raw of items) {
+            const item = raw as JsonRecord;
+            const id = asNumber(item.folderId) || asNumber(item.id) || asNumber(item.folder_id);
+            if (id !== targetId) continue;
+            const name = asText(item.folderName) || asText(item.name) || asText(item.title);
+            const typeRaw = asText(item.type ?? item.folderType).toUpperCase();
+            const folderType: 'PERSONAL' | 'SHARED' = typeRaw === 'SHARED' ? 'SHARED' : 'PERSONAL';
+            return { folderId: id, folderName: name, folderType };
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
 // ─── /api/chat/agent/run ────────────────────────────────────────────────────
 
 export type AgentRunParams = {
