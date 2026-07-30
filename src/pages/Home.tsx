@@ -26,6 +26,7 @@ import { createPhoto, getAlbumLatest, movePhotoToTrash } from '../api/photo';
 import { type ChatFolderPreviewPhoto } from '../api/chat';
 import { commitPhotoUpload, initPhotoUpload, putFileToPresignedUrl } from '../api/upload';
 import { getMyMember, type MemberProfile } from '../api/member';
+import { extractExifDateMs } from '../utils/exif';
 import '../styles/Home.css';
 
 type ViewType = 'home' | 'folder_list' | 'folder_detail' | 'shared_list' | 'shared_detail' | 'trash';
@@ -793,11 +794,17 @@ useEffect(() => {
         }
 
         try {
+            // EXIF 촬영 날짜를 먼저 병렬로 추출 (없으면 OS 수정일 fallback)
+            const exifDates = await Promise.all(files.map((f) => extractExifDateMs(f)));
+            const exifDateByFile = new Map<File, number>(
+                files.map((f, i) => [f, exifDates[i] ?? f.lastModified])
+            );
+
             const initItems = files.map((file) => ({
                 originalFilename: file.name,
                 contentType: file.type || 'application/octet-stream',
                 size: file.size,
-                clientLastModifiedMs: file.lastModified
+                clientLastModifiedMs: exifDateByFile.get(file) ?? file.lastModified
             }));
 
             let initResults: Awaited<ReturnType<typeof initPhotoUpload>> = [];
@@ -855,7 +862,7 @@ useEffect(() => {
                             photoId: task.photoId as number,
                             originalKey: task.originalKey as string,
                             etag,
-                            clientLastModifiedMs: task.file.lastModified
+                            clientLastModifiedMs: exifDateByFile.get(task.file) ?? task.file.lastModified
                         });
                     } catch (error: unknown) {
                         const message = error instanceof Error ? error.message : '파일 업로드에 실패했습니다.';

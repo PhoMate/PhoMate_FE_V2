@@ -98,6 +98,16 @@ export default function Chatbot({
     const [isDragOver, setIsDragOver] = useState(false);
     const [dragSide, setDragSide] = useState<'search' | 'edit'>('search');
 
+    // 직접 편집 패널 상태
+    const [isDirectEditOpen, setIsDirectEditOpen] = useState(false);
+    const [deFilters, setDeFilters] = useState({ brightness: 100, contrast: 100, saturation: 100 });
+    const [deRotation, setDeRotation] = useState(0);   // 누적값 (-360, -270, ..., 90, 180, ...)
+    const [deFlipH, setDeFlipH] = useState(false);
+    const [cropMode, setCropMode] = useState(false);
+    const [cropAspect, setCropAspect] = useState<'3:4' | '16:9' | 'free' | null>(null);
+    const [cropRect, setCropRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+    const cropDragRef = useRef<{ sx: number; sy: number } | null>(null);
+
     const bodyRef = useRef<HTMLDivElement | null>(null);
     const editChatRef = useRef<HTMLDivElement | null>(null);
     const localEditPreviewUrlRef = useRef<string | null>(null);
@@ -497,7 +507,8 @@ export default function Chatbot({
                                 const mapped = mapSearchItemsToPhotos(items, trimmed);
                                 hasResultItems = mapped.length > 0;
                                 onSearchResults?.({ query: trimmed, photos: mapped });
-                            }
+                            },
+                            onError: (code) => { setErrorMessage(`검색 오류: ${code}`); }
                         });
 
                         if (!hasResultItems) {
@@ -608,14 +619,151 @@ export default function Chatbot({
         }
     };
 
-    const handleSaveAndExit = async () => {
+    const resetDirectEdit = () => {
+        setDeFilters({ brightness: 100, contrast: 100, saturation: 100 });
+        setDeRotation(0);
+        setDeFlipH(false);
+        setCropMode(false);
+        setCropAspect(null);
+        setCropRect(null);
+        cropDragRef.current = null;
+    };
+
+    // cropAspect 버튼 토글: 같은 버튼 다시 누르면 비활성화
+    const toggleCropAspect = (aspect: '3:4' | '16:9' | 'free') => {
+        if (cropAspect === aspect) {
+            setCropAspect(null);
+            setCropMode(false);
+            setCropRect(null);
+        } else {
+            setCropAspect(aspect);
+            setCropMode(true);
+            setCropRect(null);
+        }
+    };
+
+    const openDirectEdit = () => {
+        resetDirectEdit();
+        setIsDirectEditOpen(true);
+    };
+
+    const closeDirectEdit = () => {
+        setIsDirectEditOpen(false);
+        resetDirectEdit();
+    };
+
+    const handleCropPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!cropMode) return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        const rect = e.currentTarget.getBoundingClientRect();
+        const sx = Math.max(0, Math.min(100, (e.clientX - rect.left) / rect.width * 100));
+        const sy = Math.max(0, Math.min(100, (e.clientY - rect.top) / rect.height * 100));
+        cropDragRef.current = { sx, sy };
+        setCropRect({ x: sx, y: sy, w: 0, h: 0 });
+    };
+
+    const handleCropPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!cropMode || !cropDragRef.current) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const cx = Math.max(0, Math.min(100, (e.clientX - rect.left) / rect.width * 100));
+        const cy = Math.max(0, Math.min(100, (e.clientY - rect.top) / rect.height * 100));
+        const { sx, sy } = cropDragRef.current;
+        let w = Math.abs(cx - sx);
+        let h = Math.abs(cy - sy);
+
+        // 컨테이너 aspect-ratio = 1.2 (W/H)
+        // pixel 비율 보정: h% = w% * (targetRatio) * (containerH/containerW) = w% * targetRatio / 1.2
+        if (cropAspect === '3:4') {
+            h = w * (4 / 3) / 1.2;
+        } else if (cropAspect === '16:9') {
+            h = w * (9 / 16) / 1.2;
+        }
+        w = Math.min(w, 100);
+        h = Math.min(h, 100);
+
+        setCropRect({
+            x: Math.max(0, cx >= sx ? sx : sx - w),
+            y: Math.max(0, cy >= sy ? sy : sy - h),
+            w,
+            h,
+        });
+    };
+
+    const handleCropPointerUp = () => { cropDragRef.current = null; };
+
+    const applyDirectEdit = async () => {
+        if (!editedImageUrl) return;
+        setIsSaving(true);
+        try {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            await new Promise<void>((resolve, reject) => {
+                img.onload = () => resolve();
+                img.onerror = () => reject(new Error('이미지 로드 실패'));
+                img.src = editedImageUrl;
+            });
+
+            // 누적값을 0/90/180/270으로 정규화
+            const normRot = ((deRotation % 360) + 360) % 360;
+            const rad = (normRot * Math.PI) / 180;
+            const isRotated90 = normRot === 90 || normRot === 270;
+
+            const canvas1 = document.createElement('canvas');
+            canvas1.width = isRotated90 ? img.height : img.width;
+            canvas1.height = isRotated90 ? img.width : img.height;
+            const ctx1 = canvas1.getContext('2d');
+            if (!ctx1) throw new Error('Canvas 컨텍스트를 가져올 수 없습니다.');
+
+            ctx1.filter = `brightness(${deFilters.brightness}%) contrast(${deFilters.contrast}%) saturate(${deFilters.saturation}%)`;
+            ctx1.translate(canvas1.width / 2, canvas1.height / 2);
+            ctx1.rotate(rad);
+            if (deFlipH) ctx1.scale(-1, 1);
+            ctx1.drawImage(img, -img.width / 2, -img.height / 2);
+
+            // 자르기 적용 (crop rect는 canvas1 기준 퍼센트)
+            let finalCanvas: HTMLCanvasElement = canvas1;
+            if (cropRect && cropRect.w > 1 && cropRect.h > 1) {
+                const sx = Math.round(canvas1.width * cropRect.x / 100);
+                const sy = Math.round(canvas1.height * cropRect.y / 100);
+                const sw = Math.round(canvas1.width * cropRect.w / 100);
+                const sh = Math.round(canvas1.height * cropRect.h / 100);
+                const canvas2 = document.createElement('canvas');
+                canvas2.width = sw;
+                canvas2.height = sh;
+                const ctx2 = canvas2.getContext('2d');
+                if (!ctx2) throw new Error('Canvas 컨텍스트를 가져올 수 없습니다.');
+                ctx2.drawImage(canvas1, sx, sy, sw, sh, 0, 0, sw, sh);
+                finalCanvas = canvas2;
+            }
+
+            await new Promise<void>((resolve, reject) => {
+                finalCanvas.toBlob((blob) => {
+                    if (!blob) { reject(new Error('이미지 변환 실패')); return; }
+                    const url = URL.createObjectURL(blob);
+                    if (localEditPreviewUrlRef.current) URL.revokeObjectURL(localEditPreviewUrlRef.current);
+                    localEditPreviewUrlRef.current = url;
+                    setEditedImageUrl(url);
+                    resolve();
+                }, 'image/jpeg', 0.92);
+            });
+
+            appendEditMessage('assistant', '직접 편집이 적용되었습니다.');
+            setIsDirectEditOpen(false);
+            resetDirectEdit();
+        } catch (err: unknown) {
+            setErrorMessage(err instanceof Error ? err.message : '직접 편집 적용 실패');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleSave = async () => {
         if (!editedImageUrl || isSaving || editSessionIdRef.current === null) return;
         setIsSaving(true);
         try {
             const finalUrl = await finalizeEdit(editSessionIdRef.current);
             setEditedImageUrl(finalUrl);
-            appendEditMessage('assistant', '최종 저장이 완료되었습니다. 갤러리에서 확인하세요!');
-            setTimeout(() => onClose(), 1500);
+            appendEditMessage('assistant', '저장이 완료되었습니다. 갤러리에서 확인하세요!');
         } catch (err: unknown) {
             setErrorMessage(err instanceof Error ? err.message : '저장 실패');
         } finally {
@@ -723,6 +871,7 @@ export default function Chatbot({
                         const mapped = mapSearchItemsToPhotos(items, '이미지 검색');
                         if (mapped.length > 0) onSearchResults?.({ query: '이미지 검색', photos: mapped });
                     },
+                    onError: (code) => { updateSearchMessage(assistantId, `이미지 검색 오류: ${code}`); }
                 });
                 if (!streamedText.trim()) updateSearchMessage(assistantId, '이미지 기반 검색 결과를 불러오지 못했습니다.');
             } catch {
@@ -800,18 +949,22 @@ export default function Chatbot({
                     <div className="chatbot-header-left">
                         <span className="chatbot-title">AI 대화</span>
                         {activeTab === 'edit' && (
-                            <button
-                                className="chatbot-mode-badge"
-                                onClick={() => handleTabChange('search')}
-                                title="검색 모드로 전환"
-                            >
-                                ✏ 편집 모드
-                            </button>
+                            <span className="chatbot-mode-badge">✏ 편집 모드</span>
                         )}
                     </div>
-                    <button className="panel-close-btn" onClick={handleClose}>
-                        <X size={20} />
-                    </button>
+                    <div className="chatbot-header-right">
+                        {activeTab === 'edit' && (
+                            <button
+                                className="edit-exit-btn"
+                                onClick={() => handleTabChange('search')}
+                            >
+                                ← 검색으로 돌아가기
+                            </button>
+                        )}
+                        <button className="panel-close-btn" onClick={handleClose}>
+                            <X size={20} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* 바디 */}
@@ -823,8 +976,88 @@ export default function Chatbot({
                     onDrop={handleBodyDrop}
                 >
 
+                    {/* 직접 편집 패널 */}
+                    {activeTab === 'edit' && isDirectEditOpen && (
+                        <div className="direct-edit-panel">
+                            <div
+                                className={`de-preview-wrap${cropMode ? ' crop-mode' : ''}`}
+                                onPointerDown={handleCropPointerDown}
+                                onPointerMove={handleCropPointerMove}
+                                onPointerUp={handleCropPointerUp}
+                            >
+                                <img
+                                    src={editedImageUrl}
+                                    alt="편집 미리보기"
+                                    className="de-preview-img"
+                                    style={{
+                                        filter: `brightness(${deFilters.brightness}%) contrast(${deFilters.contrast}%) saturate(${deFilters.saturation}%)`,
+                                        transform: `rotate(${deRotation}deg) scaleX(${deFlipH ? -1 : 1})`,
+                                    }}
+                                />
+                                {cropMode && cropRect && cropRect.w > 0.5 && cropRect.h > 0.5 && (
+                                    <div
+                                        className="de-crop-overlay"
+                                        style={{
+                                            left: `${cropRect.x}%`,
+                                            top: `${cropRect.y}%`,
+                                            width: `${cropRect.w}%`,
+                                            height: `${cropRect.h}%`,
+                                        }}
+                                    />
+                                )}
+                            </div>
+
+                            <div className="de-section-label">밝기 / 대비 / 채도</div>
+                            <div className="de-sliders">
+                                {([
+                                    { key: 'brightness', label: '밝기', min: 0, max: 200 },
+                                    { key: 'contrast',   label: '대비', min: 0, max: 200 },
+                                    { key: 'saturation', label: '채도', min: 0, max: 200 },
+                                ] as const).map(({ key, label, min, max }) => (
+                                    <div className="de-slider-row" key={key}>
+                                        <span className="de-slider-label">{label}</span>
+                                        <input
+                                            type="range" min={min} max={max}
+                                            value={deFilters[key]}
+                                            onChange={(e) => setDeFilters((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
+                                            className="de-slider"
+                                        />
+                                        <span className="de-slider-value">{deFilters[key]}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="de-section-label">회전 / 반전</div>
+                            <div className="de-transform-row">
+                                <button className="de-icon-btn" onClick={() => setDeRotation((r) => r - 90)} title="왼쪽 90°">↺</button>
+                                <button className="de-icon-btn" onClick={() => setDeRotation((r) => r + 90)} title="오른쪽 90°">↻</button>
+                                <button className={`de-icon-btn${deFlipH ? ' active' : ''}`} onClick={() => setDeFlipH((v) => !v)} title="좌우 반전">⇔</button>
+                                <button className="de-icon-btn reset" onClick={resetDirectEdit} title="초기화">초기화</button>
+                            </div>
+
+                            <div className="de-section-label">자르기</div>
+                            <div className="de-transform-row">
+                                <button className={`de-icon-btn${cropAspect === '3:4' ? ' active' : ''}`} onClick={() => toggleCropAspect('3:4')}>3:4</button>
+                                <button className={`de-icon-btn${cropAspect === '16:9' ? ' active' : ''}`} onClick={() => toggleCropAspect('16:9')}>16:9</button>
+                                <button className={`de-icon-btn${cropAspect === 'free' ? ' active' : ''}`} onClick={() => toggleCropAspect('free')}>직접 자르기</button>
+                            </div>
+                            {cropMode && (
+                                <p className="de-crop-hint">
+                                    {cropRect && cropRect.w > 0.5 ? '드래그로 영역을 조정하세요' : '미리보기 위에서 드래그해 영역을 선택하세요'}
+                                </p>
+                            )}
+
+                            <div className="de-actions">
+                                <button className="de-cancel-btn" onClick={closeDirectEdit} disabled={isSaving}>취소</button>
+                                <button className="de-apply-btn" onClick={() => void applyDirectEdit()} disabled={isSaving}>
+                                    {isSaving ? '적용 중...' : '적용'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* 편집 모드일 때 이미지 프리뷰 */}
-                    {activeTab === 'edit' && (
+                    {activeTab === 'edit' && !isDirectEditOpen && (
                         <div className="edit-preview-area">
                             {isEditSessionLoading ? (
                                 <p className="preview-placeholder">편집 세션 준비 중...</p>
@@ -936,18 +1169,28 @@ export default function Chatbot({
                                     className="tool-btn direct-edit"
                                     disabled={!editedImageUrl || !isEditReady}
                                     title="직접 편집"
+                                    onClick={openDirectEdit}
                                 >
                                     <Edit3 size={14} /> 직접 편집
                                 </button>
                             </div>
-                            <button
-                                className="save-finish-btn"
-                                onClick={() => void handleSaveAndExit()}
-                                disabled={!editedImageUrl || isSaving || !isEditReady}
-                            >
-                                <Save size={16} />
-                                {isSaving ? '저장 중...' : '저장 및 종료'}
-                            </button>
+                            <div className="edit-action-row">
+                                <button
+                                    className="edit-cancel-btn"
+                                    onClick={() => handleTabChange('search')}
+                                    disabled={isSaving}
+                                >
+                                    편집 취소
+                                </button>
+                                <button
+                                    className="save-finish-btn"
+                                    onClick={() => void handleSave()}
+                                    disabled={!editedImageUrl || isSaving || !isEditReady}
+                                >
+                                    <Save size={16} />
+                                    {isSaving ? '저장 중...' : '저장'}
+                                </button>
+                            </div>
                         </div>
                     )}
 

@@ -231,6 +231,7 @@ export async function streamSearchChat(
         message: string;
         onDelta: (delta: string) => void;
         onResults?: (items: SearchResultItem[]) => void;
+        onError?: (code: string) => void;
     }
 ): Promise<void> {
     const memberId = getMemberIdFromAccessToken();
@@ -486,6 +487,7 @@ async function consumeSearchStreamResponse(
         message: string;
         onDelta: (delta: string) => void;
         onResults?: (items: SearchResultItem[]) => void;
+        onError?: (code: string) => void;
     }
 ): Promise<void> {
     if (!response.body) {
@@ -504,6 +506,12 @@ async function consumeSearchStreamResponse(
 
         const { eventType, data } = parseEventBlock(block);
         const normalizedEventType = eventType.toLocaleLowerCase();
+
+        if (normalizedEventType === 'error') {
+            if (params.onError) params.onError(data.trim() || 'stream_failed');
+            return;
+        }
+
         const tryEmitResultsFromJsonText = (jsonText: string): boolean => {
             const trimmed = jsonText.trim();
             if (!trimmed || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) return false;
